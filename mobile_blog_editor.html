@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>スマホ用ブログエディタ</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            height: 100dvh;
+            box-sizing: border-box;
+            overflow: hidden; 
+        }
+
+        /* --- ヘッダー（上部バー） --- */
+        .app-header {
+            background-color: #ffffff;
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+        .menu-btn {
+            font-size: 26px;
+            color: #333;
+            background: none;
+            border: none;
+            padding: 0;
+            margin-right: 15px;
+            cursor: pointer;
+            line-height: 1;
+        }
+        .app-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 0;
+            color: #2c3e50;
+        }
+
+        /* --- メインのエディタ画面 --- */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            padding-bottom: calc(15px + env(safe-area-inset-bottom));
+            box-sizing: border-box;
+            min-height: 0;
+        }
+
+        .title-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            flex-shrink: 0;
+            -webkit-appearance: none;
+        }
+        .title-input:focus {
+            outline: none;
+            border-color: #007BFF;
+            box-shadow: 0 0 5px rgba(0,123,255,0.3);
+        }
+
+        textarea {
+            width: 100%;
+            flex: 1; 
+            padding: 12px;
+            font-size: 16px;
+            line-height: 1.6;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            resize: none;
+            -webkit-appearance: none;
+            min-height: 0;
+            overflow-y: auto;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #007BFF;
+            box-shadow: 0 0 5px rgba(0,123,255,0.3);
+        }
+        
+        .editor-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-shrink: 0;
+        }
+        .editor-actions button {
+            flex: 1;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: bold;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .btn-save { background-color: #007BFF; color: white; }
+        .btn-break { background-color: #6c757d; color: white; }
+        
+        /* --- スライドメニュー --- */
+        .sidebar-drawer {
+            position: fixed;
+            top: 0;
+            left: -100%; 
+            width: 85%;
+            max-width: 340px;
+            height: 100vh;
+            height: 100dvh;
+            background-color: #f7f9fc;
+            z-index: 1000;
+            transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            padding-bottom: calc(15px + env(safe-area-inset-bottom));
+            box-sizing: border-box;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.2);
+        }
+        .sidebar-drawer.open {
+            left: 0;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            height: 100dvh;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .overlay.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 10px;
+            flex-shrink: 0;
+        }
+        .panel-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .drawer-header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .btn-new { 
+            background-color: #28a745; 
+            color: white; 
+            padding: 6px 12px; 
+            font-size: 13px; 
+            font-weight: bold;
+            border-radius: 6px; 
+            border: none;
+            cursor: pointer;
+        }
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #666;
+            padding: 0;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        /* --- 定型文設定エリア --- */
+        .template-section {
+            margin-bottom: 15px;
+            background: #fff;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            flex-shrink: 0;
+        }
+        .template-section h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .template-input {
+            width: 100%;
+            height: 50px;
+            padding: 8px;
+            font-size: 13px;
+            line-height: 1.4;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            resize: none;
+            -webkit-appearance: none;
+        }
+        .template-input:focus {
+            outline: none;
+            border-color: #007BFF;
+        }
+        .template-hint {
+            font-size: 11px;
+            color: #888;
+            margin: 5px 0 0 0;
+        }
+
+        /* --- 保存済みリスト --- */
+        .article-list {
+            flex: 1;
+            overflow-y: auto;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+        
+        .article-item {
+            background: #ffffff;
+            border: 1px solid #ddd;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .article-item.editing {
+            border: 2px solid #007BFF;
+            background-color: #f0f7ff;
+        }
+        
+        .article-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .article-title-display {
+            font-size: 15px;
+            font-weight: bold;
+            color: #007BFF;
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 4px;
+            margin-left: -4px;
+            border-radius: 4px;
+            border: 1px solid transparent;
+        }
+        .article-title-display:focus {
+            outline: none;
+            background: #fff;
+            border-color: #007BFF;
+        }
+
+        .article-date {
+            font-size: 12px;
+            color: #888;
+            margin-left: 10px;
+        }
+        
+        .article-preview {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .article-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .article-actions button {
+            padding: 8px 10px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+        }
+
+        .btn-copy { background-color: #4CAF50; flex: 1; }
+        .btn-delete { background-color: #dc3545; flex: 0 0 auto; width: 60px; }
+
+        .storage-info {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-bottom: none;
+            border-top: 2px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            flex-shrink: 0;
+        }
+        .storage-text {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .storage-bar {
+            width: 100%;
+            height: 6px;
+            background-color: #e9ecef;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .storage-fill {
+            height: 100%;
+            background-color: #28a745;
+            width: 0%;
+        }
+        .storage-fill.warning { background-color: #ffc107; }
+        .storage-fill.danger { background-color: #dc3545; }
+    </style>
+</head>
+<body>
+
+    <div class="app-header">
+        <button class="menu-btn" onclick="toggleMenu()">≡</button>
+        <h1 class="app-title">ブログエディタ</h1>
+    </div>
+
+    <div class="main-content">
+        <input type="text" id="titleInput" class="title-input" placeholder="タイトル（空欄で日付を自動付与）">
+        <textarea id="editor" placeholder="ここから本文を入力..."></textarea>
+        
+        <div class="editor-actions">
+            <button class="btn-save" onclick="saveArticle()">💾 保存する</button>
+            <button class="btn-break" onclick="insertThirtyBreaks()">↵ 30行改行</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="closeMenu()"></div>
+
+    <div class="sidebar-drawer" id="sidebarDrawer">
+        <div class="panel-header">
+            <h3>メニュー</h3>
+            <div class="drawer-header-actions">
+                <button class="btn-new" onclick="resetEditorAndClose()">＋ 新規</button>
+                <button class="btn-close" onclick="closeMenu()">×</button>
+            </div>
+        </div>
+        
+        <div class="template-section">
+            <h4>💬 定型文設定</h4>
+            <textarea id="templateInput" class="template-input" placeholder="例：SPいいね回り強化月間しています！"></textarea>
+            <p class="template-hint">※コピー時に「10行改行＋定型文＋10行改行＋本文」の順で出力されます。</p>
+        </div>
+        
+        <ul id="articleList" class="article-list"></ul>
+        
+        <div class="storage-info">
+            <div class="storage-text">
+                <span>データ使用量</span>
+                <span id="storageLabel">0 KB (0%)</span>
+            </div>
+            <div class="storage-bar">
+                <div class="storage-fill" id="storageFill"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const titleInput = document.getElementById('titleInput');
+    const editor = document.getElementById('editor');
+    const articleList = document.getElementById('articleList');
+    const templateInput = document.getElementById('templateInput');
+    const drawer = document.getElementById('sidebarDrawer');
+    const overlay = document.getElementById('overlay');
+
+    let articles = JSON.parse(localStorage.getItem('blogStock')) || [];
+    let editingIndex = -1; 
+
+    // --- メニューの開閉 ---
+    function toggleMenu() {
+        drawer.classList.toggle('open');
+        overlay.classList.toggle('open');
+    }
+    
+    function closeMenu() {
+        drawer.classList.remove('open');
+        overlay.classList.remove('open');
+    }
+    
+    function openMenu() {
+        drawer.classList.add('open');
+        overlay.classList.add('open');
+    }
+
+    // --- スワイプ検知処理 ---
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    document.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+        
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+        const isOpen = drawer.classList.contains('open');
+
+        // Y方向（縦スクロール）よりもX方向（横スワイプ）の動きが大きく、かつ50px以上動かした場合
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+            if (deltaX > 0 && !isOpen) {
+                // 左から右へスワイプ (開く)
+                // テキスト入力中の誤作動を防ぐため、画面の左端（幅の15%以内 または 左から50px以内）からのスワイプのみ反応
+                if (touchStartX < window.innerWidth * 0.15 || touchStartX < 50) {
+                    openMenu();
+                }
+            } else if (deltaX < 0 && isOpen) {
+                // 右から左へスワイプ (閉じる)
+                closeMenu();
+            }
+        }
+    }, { passive: true });
+
+    // --- 定型文の読み込みと自動保存 ---
+    templateInput.value = localStorage.getItem('blogTemplateText') || '';
+    templateInput.addEventListener('input', (e) => {
+        localStorage.setItem('blogTemplateText', e.target.value);
+    });
+
+    function updateStorageMeter() {
+        const stockData = localStorage.getItem('blogStock') || '';
+        const usedBytes = stockData.length * 2; 
+        const maxBytes = 5 * 1024 * 1024; 
+        
+        let displayUsed = '';
+        if (usedBytes < 1024) displayUsed = usedBytes + ' B';
+        else if (usedBytes < 1024 * 1024) displayUsed = (usedBytes / 1024).toFixed(2) + ' KB';
+        else displayUsed = (usedBytes / (1024 * 1024)).toFixed(2) + ' MB';
+        
+        let percent = (usedBytes / maxBytes) * 100;
+        if (percent > 100) percent = 100; 
+
+        document.getElementById('storageLabel').textContent = `${displayUsed} (${percent.toFixed(2)}%)`;
+
+        const fill = document.getElementById('storageFill');
+        fill.style.width = `${percent}%`;
+        fill.className = percent >= 95 ? 'storage-fill danger' : percent >= 80 ? 'storage-fill warning' : 'storage-fill';
+    }
+
+    window.resetEditorAndClose = function() {
+        editingIndex = -1;
+        titleInput.value = '';
+        editor.value = ''; 
+        renderArticles();
+        closeMenu(); 
+        editor.focus();
+    };
+    
+    function resetEditor() {
+        editingIndex = -1;
+        titleInput.value = '';
+        editor.value = ''; 
+        renderArticles();
+    }
+
+    window.insertThirtyBreaks = function() {
+        const cursorPosition = editor.selectionStart;
+        const textBefore = editor.value.substring(0, cursorPosition);
+        const textAfter = editor.value.substring(editor.selectionEnd, editor.value.length);
+        
+        const breaks = '\n'.repeat(30);
+        editor.value = textBefore + breaks + textAfter;
+        
+        const newCursorPosition = cursorPosition + breaks.length;
+        editor.selectionStart = newCursorPosition;
+        editor.selectionEnd = newCursorPosition;
+        editor.focus();
+    };
+
+    function renderArticles() {
+        articleList.innerHTML = '';
+        articles.forEach((article, index) => {
+            const li = document.createElement('li');
+            li.className = 'article-item';
+            if (index === editingIndex) li.classList.add('editing');
+
+            const displayTitle = article.title ? article.title : '無題の記事';
+            const previewText = article.text.trim() || '（本文なし）';
+
+            li.innerHTML = `
+                <div class="article-header" onclick="loadArticle(${index})">
+                    <div class="article-title-display" 
+                         contenteditable="true" 
+                         onclick="event.stopPropagation();" 
+                         onblur="updateTitleFromList(${index}, this.innerText)" 
+                         onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.blur(); }">${displayTitle}</div>
+                    <div class="article-date">${article.date}</div>
+                </div>
+                <div class="article-preview" onclick="loadArticle(${index})">${previewText}</div>
+                <div class="article-actions">
+                    <button class="btn-copy" onclick="event.stopPropagation(); copyArticle(${index}, this)">コピー</button>
+                    <button class="btn-delete" onclick="event.stopPropagation(); deleteArticle(${index})">削除</button>
+                </div>
+            `;
+            articleList.appendChild(li);
+        });
+
+        updateStorageMeter();
+    }
+
+    window.updateTitleFromList = function(index, newTitleText) {
+        let trimmedTitle = newTitleText.trim();
+        if (trimmedTitle === '無題の記事') trimmedTitle = '';
+
+        if (articles[index].title === trimmedTitle || (!articles[index].title && trimmedTitle === '')) {
+            renderArticles(); return;
+        }
+
+        articles[index].title = trimmedTitle;
+        localStorage.setItem('blogStock', JSON.stringify(articles));
+        if (index === editingIndex) titleInput.value = trimmedTitle;
+        renderArticles();
+    };
+
+    window.loadArticle = function(index) {
+        editingIndex = index;
+        titleInput.value = articles[index].title || ''; 
+        editor.value = articles[index].text;
+        
+        renderArticles(); 
+        closeMenu(); 
+    };
+
+    window.saveArticle = function() {
+        const content = editor.value;
+        if (content.trim() === '') {
+            resetEditor();
+            return;
+        }
+
+        let title = titleInput.value.trim(); 
+        
+        if (title === '') {
+            const existingDates = new Set();
+            articles.forEach(article => {
+                if (article.title) {
+                    const match = article.title.match(/(20\d{6})/);
+                    if (match) existingDates.add(match[1]);
+                }
+            });
+
+            const baseDate = new Date();
+            if (baseDate.getHours() < 10) baseDate.setDate(baseDate.getDate() - 1);
+
+            let offset = 0;
+            while (true) {
+                const d = new Date(baseDate);
+                d.setDate(d.getDate() + offset);
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const dateStr = `${yyyy}${mm}${dd}`;
+                
+                if (!existingDates.has(dateStr)) {
+                    title = dateStr;
+                    break;
+                }
+                offset++;
+            }
+        }
+
+        const now = new Date();
+        const dateString = `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+        if (editingIndex === -1) {
+            articles.unshift({ title: title, text: content, date: dateString });
+        } else {
+            articles[editingIndex].title = title; 
+            articles[editingIndex].text = content;
+        }
+
+        localStorage.setItem('blogStock', JSON.stringify(articles));
+        resetEditor(); 
+        
+        const saveBtn = document.querySelector('.btn-save');
+        const orgText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '✔ 保存完了';
+        saveBtn.style.backgroundColor = '#28a745';
+        setTimeout(() => {
+            saveBtn.innerHTML = orgText;
+            saveBtn.style.backgroundColor = '#007BFF';
+        }, 1500);
+    };
+
+    window.copyArticle = async function(index, btnElement) {
+        try {
+            const template = templateInput.value.trim();
+            const bodyText = articles[index].text;
+            
+            let textToCopy = '';
+            if (template !== '') {
+                const breaks = '\n'.repeat(10);
+                textToCopy = breaks + template + breaks + bodyText;
+            } else {
+                textToCopy = bodyText;
+            }
+            
+            await navigator.clipboard.writeText(textToCopy);
+            const originalText = btnElement.innerHTML;
+            btnElement.innerHTML = '完了';
+            btnElement.style.backgroundColor = '#218838';
+            setTimeout(() => {
+                btnElement.innerHTML = originalText;
+                btnElement.style.backgroundColor = '';
+            }, 2000);
+        } catch (err) {
+            console.error('コピー失敗', err);
+            alert('コピーに失敗しました。');
+        }
+    };
+
+    window.deleteArticle = function(index) {
+        if(!confirm('本当に削除しますか？')) return;
+        
+        articles.splice(index, 1);
+        localStorage.setItem('blogStock', JSON.stringify(articles));
+        
+        if (index === editingIndex) resetEditor();
+        else if (index < editingIndex) {
+            editingIndex--;
+            renderArticles();
+        } else {
+            renderArticles();
+        }
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+        resetEditor();
+    });
+</script>
+
+</body>
+</html>
