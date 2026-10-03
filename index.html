@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>スマホ用ブログエディタ</title>
+    <title>スマホ用ブログエディタ（AI装飾・Q&A対応）</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
@@ -19,15 +19,20 @@
             overflow: hidden; 
         }
 
-        /* --- ヘッダー（上部バー） --- */
+        /* --- ヘッダー --- */
         .app-header {
             background-color: #ffffff;
             padding: 12px 15px;
             display: flex;
+            justify-content: space-between;
             align-items: center;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             z-index: 10;
             flex-shrink: 0;
+        }
+        .header-left, .header-right {
+            display: flex;
+            align-items: center;
         }
         .menu-btn {
             font-size: 26px;
@@ -39,11 +44,33 @@
             cursor: pointer;
             line-height: 1;
         }
+        .header-right .menu-btn {
+            margin-right: 0;
+            margin-left: 15px;
+        }
         .app-title {
             font-size: 18px;
             font-weight: bold;
             margin: 0;
             color: #2c3e50;
+        }
+        
+        /* 追加: 女の子の声 専用のテキストボタン */
+        .btn-voice-header {
+            background-color: #fff0f5; /* 薄いピンク色 */
+            color: #ff4757;
+            border: 1px solid #ffd6e0;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 10px;
+            white-space: nowrap;
+            transition: background-color 0.2s;
+        }
+        .btn-voice-header:active {
+            background-color: #ffe4ec;
         }
 
         /* --- メインのエディタ画面 --- */
@@ -110,31 +137,41 @@
             border: none;
             cursor: pointer;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: background-color 0.2s;
         }
         .btn-save { background-color: #007BFF; color: white; }
+        .btn-save:disabled { background-color: #b2bec3; cursor: not-allowed; }
         .btn-break { background-color: #6c757d; color: white; }
         
-        /* --- スライドメニュー --- */
-        .sidebar-drawer {
+        /* --- スライドメニュー (共通) --- */
+        .drawer {
             position: fixed;
             top: 0;
-            left: -100%; 
             width: 85%;
             max-width: 340px;
             height: 100vh;
             height: 100dvh;
             background-color: #f7f9fc;
             z-index: 1000;
-            transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             display: flex;
             flex-direction: column;
             padding: 15px;
             padding-bottom: calc(15px + env(safe-area-inset-bottom));
             box-sizing: border-box;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .drawer-left {
+            left: 0;
+            transform: translateX(-100%);
             box-shadow: 4px 0 15px rgba(0,0,0,0.2);
         }
-        .sidebar-drawer.open {
-            left: 0;
+        .drawer-right {
+            right: 0;
+            transform: translateX(100%);
+            box-shadow: -4px 0 15px rgba(0,0,0,0.2);
+        }
+        .drawer.open {
+            transform: translateX(0);
         }
 
         .overlay {
@@ -175,6 +212,9 @@
             gap: 10px;
             align-items: center;
         }
+        .btn-new, .btn-close {
+            cursor: pointer;
+        }
         .btn-new { 
             background-color: #28a745; 
             color: white; 
@@ -183,7 +223,6 @@
             font-weight: bold;
             border-radius: 6px; 
             border: none;
-            cursor: pointer;
         }
         .btn-close {
             background: none;
@@ -192,11 +231,10 @@
             color: #666;
             padding: 0;
             line-height: 1;
-            cursor: pointer;
         }
 
-        /* --- 定型文設定エリア --- */
-        .template-section {
+        /* --- 既存の設定・リストなど --- */
+        .settings-section {
             margin-bottom: 15px;
             background: #fff;
             padding: 12px;
@@ -204,13 +242,10 @@
             border: 1px solid #ddd;
             flex-shrink: 0;
         }
-        .template-section h4 {
+        .settings-section h4 {
             margin: 0 0 8px 0;
             font-size: 13px;
             color: #555;
-            display: flex;
-            align-items: center;
-            gap: 5px;
         }
         .template-input {
             width: 100%;
@@ -222,19 +257,14 @@
             border-radius: 4px;
             box-sizing: border-box;
             resize: none;
-            -webkit-appearance: none;
         }
-        .template-input:focus {
-            outline: none;
-            border-color: #007BFF;
-        }
-        .template-hint {
+        .setting-hint {
             font-size: 11px;
             color: #888;
             margin: 5px 0 0 0;
+            line-height: 1.4;
         }
 
-        /* --- 保存済みリスト --- */
         .article-list {
             flex: 1;
             overflow-y: auto;
@@ -242,7 +272,6 @@
             padding: 0;
             list-style: none;
         }
-        
         .article-item {
             background: #ffffff;
             border: 1px solid #ddd;
@@ -251,18 +280,12 @@
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        .article-item.editing {
-            border: 2px solid #007BFF;
-            background-color: #f0f7ff;
-        }
-        
         .article-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 5px;
         }
-
         .article-title-display {
             font-size: 15px;
             font-weight: bold;
@@ -272,22 +295,12 @@
             overflow: hidden;
             text-overflow: ellipsis;
             padding: 4px;
-            margin-left: -4px;
-            border-radius: 4px;
-            border: 1px solid transparent;
         }
-        .article-title-display:focus {
-            outline: none;
-            background: #fff;
-            border-color: #007BFF;
-        }
-
         .article-date {
             font-size: 12px;
             color: #888;
             margin-left: 10px;
         }
-        
         .article-preview {
             font-size: 13px;
             color: #555;
@@ -296,37 +309,101 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        
         .article-actions {
             display: flex;
-            gap: 10px;
+            gap: 6px;
         }
-        
         .article-actions button {
-            padding: 8px 10px;
-            font-size: 14px;
+            padding: 8px 4px;
+            font-size: 12px;
             font-weight: bold;
             color: #fff;
             border: none;
             border-radius: 6px;
+            cursor: pointer;
+        }
+        .btn-copy { background-color: #00b894; flex: 1; }
+        .btn-copy-ai { background-color: #4285f4; flex: 1.2; }
+        .btn-delete { background-color: #dc3545; flex: 0 0 auto; width: 44px; }
+
+        /* --- 女の子の声（Q&A）用のスタイル --- */
+        .voice-scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            margin-top: 5px;
+        }
+        
+        .voice-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+        .voice-tab {
+            flex: 1;
+            padding: 10px;
+            background-color: #e9ecef;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #555;
+            cursor: pointer;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .voice-tab.active {
+            background-color: #007BFF;
+            color: white;
         }
 
-        .btn-copy { background-color: #4CAF50; flex: 1; }
-        .btn-delete { background-color: #dc3545; flex: 0 0 auto; width: 60px; }
+        .voice-list {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 15px 0;
+        }
+        .voice-item {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+        }
+        .voice-text {
+            font-size: 13px;
+            line-height: 1.4;
+            flex: 1;
+            color: #333;
+        }
+        .btn-voice {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: background-color 0.2s;
+        }
+        .btn-voice:disabled {
+            background-color: #b2bec3;
+            cursor: not-allowed;
+        }
 
         .storage-info {
             margin-top: 10px;
             padding-top: 10px;
-            border-bottom: none;
             border-top: 2px solid #ddd;
             font-size: 12px;
             color: #666;
             flex-shrink: 0;
-        }
-        .storage-text {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
         }
         .storage-bar {
             width: 100%;
@@ -334,21 +411,27 @@
             background-color: #e9ecef;
             border-radius: 3px;
             overflow: hidden;
+            margin-top: 5px;
         }
         .storage-fill {
             height: 100%;
             background-color: #28a745;
             width: 0%;
         }
-        .storage-fill.warning { background-color: #ffc107; }
-        .storage-fill.danger { background-color: #dc3545; }
     </style>
 </head>
 <body>
 
     <div class="app-header">
-        <button class="menu-btn" onclick="toggleMenu()">≡</button>
-        <h1 class="app-title">ブログエディタ</h1>
+        <div class="header-left">
+            <button class="menu-btn" onclick="toggleLeftMenu()">≡</button>
+            <h1 class="app-title">ブログエディタ</h1>
+        </div>
+        <div class="header-right">
+            <!-- 変更点: 女の子の声ボタンをテキスト形式に -->
+            <button class="btn-voice-header" onclick="toggleVoiceMenu()">女の子の声</button>
+            <button class="menu-btn" onclick="toggleRightMenu()">⚙</button>
+        </div>
     </div>
 
     <div class="main-content">
@@ -361,33 +444,62 @@
         </div>
     </div>
 
-    <div class="overlay" id="overlay" onclick="closeMenu()"></div>
+    <div class="overlay" id="overlay" onclick="closeAllMenus()"></div>
 
-    <div class="sidebar-drawer" id="sidebarDrawer">
+    <!-- 左メニュー（ストック・定型文） -->
+    <div class="drawer drawer-left" id="sidebarDrawer">
         <div class="panel-header">
             <h3>メニュー</h3>
             <div class="drawer-header-actions">
                 <button class="btn-new" onclick="resetEditorAndClose()">＋ 新規</button>
-                <button class="btn-close" onclick="closeMenu()">×</button>
+                <button class="btn-close" onclick="closeAllMenus()">×</button>
             </div>
         </div>
-        
-        <div class="template-section">
+        <div class="settings-section">
             <h4>💬 定型文設定</h4>
             <textarea id="templateInput" class="template-input" placeholder="例：SPいいね回り強化月間しています！"></textarea>
-            <p class="template-hint">※コピー時に「10行改行＋定型文＋10行改行＋本文」の順で出力されます。</p>
+            <p class="setting-hint">※コピー時に「10行改行＋定型文＋10行改行＋本文」の順で出力されます。</p>
+        </div>
+        <ul id="articleList" class="article-list"></ul>
+        <div class="storage-info">
+            <div style="display:flex; justify-content:space-between;">
+                <span>データ使用量</span><span id="storageLabel">0 KB (0%)</span>
+            </div>
+            <div class="storage-bar"><div class="storage-fill" id="storageFill"></div></div>
+        </div>
+    </div>
+
+    <!-- 右メニュー（女の子の声/Q&A） -->
+    <div class="drawer drawer-right" id="voiceDrawer">
+        <div class="panel-header">
+            <h3>💬 女の子の声 (自動回答)</h3>
+            <button class="btn-close" onclick="closeAllMenus()">×</button>
         </div>
         
-        <ul id="articleList" class="article-list"></ul>
-        
-        <div class="storage-info">
-            <div class="storage-text">
-                <span>データ使用量</span>
-                <span id="storageLabel">0 KB (0%)</span>
-            </div>
-            <div class="storage-bar">
-                <div class="storage-fill" id="storageFill"></div>
-            </div>
+        <div class="voice-tabs">
+            <button id="tabUnanswered" class="voice-tab active" onclick="switchVoiceTab('unanswered')">未回答</button>
+            <button id="tabAnswered" class="voice-tab" onclick="switchVoiceTab('answered')">回答済み</button>
+        </div>
+
+        <div class="voice-scroll-area">
+            <ul id="unansweredList" class="voice-list"></ul>
+            <ul id="answeredList" class="voice-list" style="display: none;"></ul>
+        </div>
+    </div>
+
+    <!-- 右メニュー（AI装飾設定） -->
+    <div class="drawer drawer-right" id="settingsDrawer">
+        <div class="panel-header">
+            <h3>⚙️ AI装飾設定</h3>
+            <button class="btn-close" onclick="closeAllMenus()">×</button>
+        </div>
+        <div class="settings-section">
+            <label for="apiKey" style="font-size: 13px; font-weight: bold;">Gemini API Key</label>
+            <input type="password" id="apiKey" class="title-input" style="font-size: 13px; padding: 10px; margin-top: 5px;" placeholder="AQ....">
+            <p class="setting-hint" style="margin-top: -5px; margin-bottom: 10px;">※キーはブラウザにのみ保存されます</p>
+            <p class="setting-hint" style="color: #d63031; font-weight: bold;">
+                ※リストの「✨AI装飾」または「女の子の声」ボタンを押した際、APIを利用して自動処理を行います。
+            </p>
         </div>
     </div>
 
@@ -396,275 +508,654 @@
     const editor = document.getElementById('editor');
     const articleList = document.getElementById('articleList');
     const templateInput = document.getElementById('templateInput');
-    const drawer = document.getElementById('sidebarDrawer');
+    const apiKeyInput = document.getElementById('apiKey');
+
+    const drawerLeft = document.getElementById('sidebarDrawer');
+    const drawerRight = document.getElementById('settingsDrawer');
+    const drawerVoice = document.getElementById('voiceDrawer');
     const overlay = document.getElementById('overlay');
 
     let articles = JSON.parse(localStorage.getItem('blogStock')) || [];
     let editingIndex = -1; 
 
-    // --- メニューの開閉 ---
-    function toggleMenu() {
-        drawer.classList.toggle('open');
-        overlay.classList.toggle('open');
+    // --- 設定の読み込み ---
+    templateInput.value = localStorage.getItem('blogTemplateText') || '';
+    templateInput.addEventListener('input', (e) => localStorage.setItem('blogTemplateText', e.target.value));
+
+    apiKeyInput.value = localStorage.getItem('gemini_api_key') || '';
+    apiKeyInput.addEventListener('input', (e) => localStorage.setItem('gemini_api_key', e.target.value));
+
+    // --- メニュー開閉 ---
+    function toggleLeftMenu() {
+        drawerRight.classList.remove('open');
+        drawerVoice.classList.remove('open');
+        drawerLeft.classList.toggle('open');
+        overlay.classList.toggle('open', drawerLeft.classList.contains('open'));
     }
-    
-    function closeMenu() {
-        drawer.classList.remove('open');
+    function toggleRightMenu() {
+        drawerLeft.classList.remove('open');
+        drawerVoice.classList.remove('open');
+        drawerRight.classList.toggle('open');
+        overlay.classList.toggle('open', drawerRight.classList.contains('open'));
+    }
+    function toggleVoiceMenu() {
+        drawerLeft.classList.remove('open');
+        drawerRight.classList.remove('open');
+        drawerVoice.classList.toggle('open');
+        overlay.classList.toggle('open', drawerVoice.classList.contains('open'));
+    }
+    function closeAllMenus() {
+        drawerLeft.classList.remove('open');
+        drawerRight.classList.remove('open');
+        drawerVoice.classList.remove('open');
         overlay.classList.remove('open');
     }
-    
-    function openMenu() {
-        drawer.classList.add('open');
-        overlay.classList.add('open');
-    }
 
-    // --- スワイプ検知処理 ---
+    // --- スワイプ検知 ---
     let touchStartX = 0;
     let touchStartY = 0;
-
     document.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
     }, { passive: true });
-
     document.addEventListener('touchend', (e) => {
-        const touchEndX = e.changedTouches[0].clientX;
-        const touchEndY = e.changedTouches[0].clientY;
+        const deltaX = e.changedTouches[0].clientX - touchStartX;
+        const deltaY = e.changedTouches[0].clientY - touchStartY;
         
-        const deltaX = touchEndX - touchStartX;
-        const deltaY = touchEndY - touchStartY;
-        const isOpen = drawer.classList.contains('open');
+        const isLeftOpen = drawerLeft.classList.contains('open');
+        const isRightOpen = drawerRight.classList.contains('open') || drawerVoice.classList.contains('open');
 
-        // Y方向（縦スクロール）よりもX方向（横スワイプ）の動きが大きく、かつ50px以上動かした場合
         if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-            if (deltaX > 0 && !isOpen) {
-                // 左から右へスワイプ (開く)
-                // テキスト入力中の誤作動を防ぐため、画面の左端（幅の15%以内 または 左から50px以内）からのスワイプのみ反応
-                if (touchStartX < window.innerWidth * 0.15 || touchStartX < 50) {
-                    openMenu();
-                }
-            } else if (deltaX < 0 && isOpen) {
-                // 右から左へスワイプ (閉じる)
-                closeMenu();
+            if (deltaX > 0 && !isLeftOpen && !isRightOpen) {
+                if (touchStartX < window.innerWidth * 0.15 || touchStartX < 50) toggleLeftMenu();
+            } else if (deltaX < 0 && isLeftOpen) {
+                closeAllMenus();
+            } else if (deltaX > 0 && isRightOpen) {
+                closeAllMenus();
             }
         }
     }, { passive: true });
 
-    // --- 定型文の読み込みと自動保存 ---
-    templateInput.value = localStorage.getItem('blogTemplateText') || '';
-    templateInput.addEventListener('input', (e) => {
-        localStorage.setItem('blogTemplateText', e.target.value);
-    });
-
+    // --- 既存エディタ機能 ---
     function updateStorageMeter() {
-        const stockData = localStorage.getItem('blogStock') || '';
-        const usedBytes = stockData.length * 2; 
-        const maxBytes = 5 * 1024 * 1024; 
-        
-        let displayUsed = '';
-        if (usedBytes < 1024) displayUsed = usedBytes + ' B';
-        else if (usedBytes < 1024 * 1024) displayUsed = (usedBytes / 1024).toFixed(2) + ' KB';
-        else displayUsed = (usedBytes / (1024 * 1024)).toFixed(2) + ' MB';
-        
-        let percent = (usedBytes / maxBytes) * 100;
-        if (percent > 100) percent = 100; 
-
-        document.getElementById('storageLabel').textContent = `${displayUsed} (${percent.toFixed(2)}%)`;
-
-        const fill = document.getElementById('storageFill');
-        fill.style.width = `${percent}%`;
-        fill.className = percent >= 95 ? 'storage-fill danger' : percent >= 80 ? 'storage-fill warning' : 'storage-fill';
+        const usedBytes = (localStorage.getItem('blogStock') || '').length * 2; 
+        const percent = Math.min((usedBytes / (5 * 1024 * 1024)) * 100, 100); 
+        document.getElementById('storageLabel').textContent = `${(usedBytes/1024).toFixed(2)} KB (${percent.toFixed(2)}%)`;
+        document.getElementById('storageFill').style.width = `${percent}%`;
     }
-
     window.resetEditorAndClose = function() {
-        editingIndex = -1;
-        titleInput.value = '';
-        editor.value = ''; 
-        renderArticles();
-        closeMenu(); 
-        editor.focus();
+        resetEditor(); closeAllMenus(); editor.focus();
     };
-    
     function resetEditor() {
-        editingIndex = -1;
-        titleInput.value = '';
-        editor.value = ''; 
-        renderArticles();
+        editingIndex = -1; titleInput.value = ''; editor.value = ''; renderArticles();
     }
-
     window.insertThirtyBreaks = function() {
-        const cursorPosition = editor.selectionStart;
-        const textBefore = editor.value.substring(0, cursorPosition);
-        const textAfter = editor.value.substring(editor.selectionEnd, editor.value.length);
-        
+        const pos = editor.selectionStart;
         const breaks = '\n'.repeat(30);
-        editor.value = textBefore + breaks + textAfter;
-        
-        const newCursorPosition = cursorPosition + breaks.length;
-        editor.selectionStart = newCursorPosition;
-        editor.selectionEnd = newCursorPosition;
+        editor.value = editor.value.substring(0, pos) + breaks + editor.value.substring(editor.selectionEnd);
+        editor.selectionStart = editor.selectionEnd = pos + breaks.length;
         editor.focus();
     };
-
     function renderArticles() {
         articleList.innerHTML = '';
         articles.forEach((article, index) => {
             const li = document.createElement('li');
             li.className = 'article-item';
-            if (index === editingIndex) li.classList.add('editing');
-
-            const displayTitle = article.title ? article.title : '無題の記事';
-            const previewText = article.text.trim() || '（本文なし）';
-
+            const displayTitle = article.title || '無題の記事';
+            const previewText = (article.text || '').replace(/<[^>]*>?/gm, '').trim() || '（本文なし）';
             li.innerHTML = `
                 <div class="article-header" onclick="loadArticle(${index})">
-                    <div class="article-title-display" 
-                         contenteditable="true" 
-                         onclick="event.stopPropagation();" 
-                         onblur="updateTitleFromList(${index}, this.innerText)" 
-                         onkeydown="if(event.key === 'Enter') { event.preventDefault(); this.blur(); }">${displayTitle}</div>
+                    <div class="article-title-display" contenteditable="true" 
+                         onclick="event.stopPropagation();" onblur="updateTitleFromList(${index}, this.innerText)" 
+                         onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${displayTitle}</div>
                     <div class="article-date">${article.date}</div>
                 </div>
                 <div class="article-preview" onclick="loadArticle(${index})">${previewText}</div>
                 <div class="article-actions">
-                    <button class="btn-copy" onclick="event.stopPropagation(); copyArticle(${index}, this)">コピー</button>
-                    <button class="btn-delete" onclick="event.stopPropagation(); deleteArticle(${index})">削除</button>
+                    <button class="btn-copy" onclick="event.stopPropagation(); copyArticle(${index}, this)">📋 普通</button>
+                    <button class="btn-copy-ai" onclick="event.stopPropagation(); copyDecoratedArticle(${index}, this)">✨ AI装飾</button>
+                    <button class="btn-delete" onclick="event.stopPropagation(); deleteArticle(${index})">🗑️</button>
                 </div>
             `;
             articleList.appendChild(li);
         });
-
         updateStorageMeter();
     }
-
-    window.updateTitleFromList = function(index, newTitleText) {
-        let trimmedTitle = newTitleText.trim();
-        if (trimmedTitle === '無題の記事') trimmedTitle = '';
-
-        if (articles[index].title === trimmedTitle || (!articles[index].title && trimmedTitle === '')) {
-            renderArticles(); return;
-        }
-
-        articles[index].title = trimmedTitle;
-        localStorage.setItem('blogStock', JSON.stringify(articles));
-        if (index === editingIndex) titleInput.value = trimmedTitle;
-        renderArticles();
+    window.updateTitleFromList = function(i, text) {
+        let t = text.trim(); if(t==='無題の記事') t='';
+        articles[i].title = t; localStorage.setItem('blogStock', JSON.stringify(articles));
+        if(i===editingIndex) titleInput.value = t; renderArticles();
     };
-
-    window.loadArticle = function(index) {
-        editingIndex = index;
-        titleInput.value = articles[index].title || ''; 
-        editor.value = articles[index].text;
-        
-        renderArticles(); 
-        closeMenu(); 
+    window.loadArticle = function(i) {
+        editingIndex = i; titleInput.value = articles[i].title || ''; editor.value = articles[i].text;
+        renderArticles(); closeAllMenus(); 
     };
-
     window.saveArticle = function() {
-        const content = editor.value;
-        if (content.trim() === '') {
-            resetEditor();
-            return;
-        }
-
+        if (editor.value.trim() === '') { resetEditor(); return; }
         let title = titleInput.value.trim(); 
-        
         if (title === '') {
-            const existingDates = new Set();
-            articles.forEach(article => {
-                if (article.title) {
-                    const match = article.title.match(/(20\d{6})/);
-                    if (match) existingDates.add(match[1]);
-                }
-            });
-
-            const baseDate = new Date();
-            if (baseDate.getHours() < 10) baseDate.setDate(baseDate.getDate() - 1);
-
+            const existingDates = new Set(articles.map(a => (a.title && a.title.match(/(20\d{6})/)) ? a.title.match(/(20\d{6})/)[1] : null));
+            const d = new Date(); if(d.getHours()<10) d.setDate(d.getDate()-1);
             let offset = 0;
-            while (true) {
-                const d = new Date(baseDate);
-                d.setDate(d.getDate() + offset);
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, '0');
-                const dd = String(d.getDate()).padStart(2, '0');
-                const dateStr = `${yyyy}${mm}${dd}`;
-                
-                if (!existingDates.has(dateStr)) {
-                    title = dateStr;
-                    break;
-                }
+            while(true) {
+                const tempD = new Date(d); tempD.setDate(tempD.getDate()+offset);
+                const str = `${tempD.getFullYear()}${String(tempD.getMonth()+1).padStart(2,'0')}${String(tempD.getDate()).padStart(2,'0')}`;
+                if(!existingDates.has(str)){ title = str; break; }
                 offset++;
             }
         }
-
         const now = new Date();
-        const dateString = `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-        if (editingIndex === -1) {
-            articles.unshift({ title: title, text: content, date: dateString });
-        } else {
-            articles[editingIndex].title = title; 
-            articles[editingIndex].text = content;
-        }
-
-        localStorage.setItem('blogStock', JSON.stringify(articles));
-        resetEditor(); 
+        const dateString = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
         
-        const saveBtn = document.querySelector('.btn-save');
-        const orgText = saveBtn.innerHTML;
-        saveBtn.innerHTML = '✔ 保存完了';
-        saveBtn.style.backgroundColor = '#28a745';
-        setTimeout(() => {
-            saveBtn.innerHTML = orgText;
-            saveBtn.style.backgroundColor = '#007BFF';
-        }, 1500);
+        if (editingIndex === -1) articles.unshift({ title, text: editor.value, date: dateString });
+        else { articles[editingIndex].title = title; articles[editingIndex].text = editor.value; }
+        
+        localStorage.setItem('blogStock', JSON.stringify(articles)); resetEditor(); 
+        const saveBtn = document.querySelector('.btn-save'); const org = saveBtn.innerHTML;
+        saveBtn.innerHTML = '✔ 保存完了'; saveBtn.style.backgroundColor = '#28a745';
+        setTimeout(()=>{ saveBtn.innerHTML=org; saveBtn.style.backgroundColor='#007BFF'; }, 1500);
     };
 
-    window.copyArticle = async function(index, btnElement) {
+    // --- AI装飾・コピー機能 ---
+    async function decorateText(inputText) {
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) throw new Error("API_KEY_MISSING");
+        const systemPrompt = `あなたは水商売・コンセプトカフェのブログ（ポケパラ等）の文章装飾を行うプロのエディタです。
+渡された文章の文脈、感情、テンション、重要度を汲み取り、読者が読みやすく目を引くようにHTMLタグで装飾してください。
+【装飾ルール】
+1. 文字の色付けには <span style="color: #カラーコード;"> を使用
+   - 感謝・愛嬌: ピンク系 (#ff4757, #ff6b81)
+   - 盛り上がり・重要イベント: 赤・ゴールド系 (#e84118, #e1b12c)
+2. キラーワードは font-size: 1.2em〜1.4em や font-weight: bold で強調
+3. 全体の20%〜30%程度の重要なフレーズに絞って装飾
+4. 改行はそのまま <br> タグに変換
+5. 装飾済みのHTML文字列のみを直接返す`;
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ parts: [{ text: inputText }] }],
+                generationConfig: { temperature: 0.7 }
+            })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.candidates[0].content.parts[0].text.trim().replace(/^```html\s*/i, '').replace(/```$/i, '');
+    }
+
+    window.copyArticle = async function(i, btn) {
         try {
+            const template = templateInput.value.trim(); const body = articles[i].text;
+            let fHtml = '', fPlain = '';
+            if(template!==''){
+                const brs = '<br>'.repeat(10); const nls = '\n'.repeat(10);
+                fHtml = brs + template.replace(/\n/g,'<br>') + brs + body;
+                fPlain = nls + template + nls + body.replace(/<[^>]*>?/gm, '');
+            } else { fHtml = body; fPlain = body.replace(/<[^>]*>?/gm, ''); }
+            if(!fHtml.includes('<br>')&&!fHtml.includes('<span')) fHtml = fHtml.replace(/\n/g,'<br>');
+            await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([fHtml],{type:'text/html'}), 'text/plain': new Blob([fPlain],{type:'text/plain'}) })]);
+            const org=btn.innerHTML; btn.innerHTML='✔ 完了'; btn.style.backgroundColor='#218838';
+            setTimeout(()=>{ btn.innerHTML=org; btn.style.backgroundColor=''; }, 2000);
+        } catch(e) { alert('コピー失敗'); }
+    };
+    
+    window.copyDecoratedArticle = async function(i, btn) {
+        if(!apiKeyInput.value.trim()){ alert("右上の⚙マークからAPIキーを設定してください。"); toggleRightMenu(); return; }
+        const orgText = btn.innerHTML; const orgBg = btn.style.backgroundColor;
+        btn.innerHTML = '⏳ 処理中...'; btn.style.backgroundColor = '#6c757d'; btn.disabled = true;
+        try {
+            const decoratedHtml = await decorateText(articles[i].text);
             const template = templateInput.value.trim();
-            const bodyText = articles[index].text;
-            
-            let textToCopy = '';
-            if (template !== '') {
-                const breaks = '\n'.repeat(10);
-                textToCopy = breaks + template + breaks + bodyText;
-            } else {
-                textToCopy = bodyText;
-            }
-            
-            await navigator.clipboard.writeText(textToCopy);
-            const originalText = btnElement.innerHTML;
-            btnElement.innerHTML = '完了';
-            btnElement.style.backgroundColor = '#218838';
-            setTimeout(() => {
-                btnElement.innerHTML = originalText;
-                btnElement.style.backgroundColor = '';
-            }, 2000);
-        } catch (err) {
-            console.error('コピー失敗', err);
-            alert('コピーに失敗しました。');
+            let fHtml = '', fPlain = '';
+            if(template!==''){
+                const brs = '<br>'.repeat(10); const nls = '\n'.repeat(10);
+                fHtml = brs + template.replace(/\n/g,'<br>') + brs + decoratedHtml;
+                fPlain = nls + template + nls + decoratedHtml.replace(/<[^>]*>?/gm, '');
+            } else { fHtml = decoratedHtml; fPlain = decoratedHtml.replace(/<[^>]*>?/gm, ''); }
+            if(!fHtml.includes('<br>')&&!fHtml.includes('<span')) fHtml = fHtml.replace(/\n/g,'<br>');
+            await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([fHtml],{type:'text/html'}), 'text/plain': new Blob([fPlain],{type:'text/plain'}) })]);
+            btn.innerHTML = '✔ 完了'; btn.style.backgroundColor = '#218838';
+        } catch(err) {
+            alert(err.message === "API_KEY_MISSING" ? "APIキーを設定してください。" : "AI装飾に失敗しました。\n詳細: " + err.message);
+            btn.innerHTML = orgText; btn.style.backgroundColor = orgBg;
+        } finally { setTimeout(()=>{ if(btn.innerHTML==='✔ 完了'){btn.innerHTML=orgText; btn.style.backgroundColor=orgBg;} btn.disabled=false; }, 2000); }
+    };
+    window.deleteArticle = function(i) {
+        if(!confirm('削除しますか？')) return;
+        articles.splice(i,1); localStorage.setItem('blogStock', JSON.stringify(articles));
+        if(i===editingIndex) resetEditor(); else { if(i<editingIndex) editingIndex--; renderArticles(); }
+    };
+
+
+    // ==========================================
+    // --- 女の子の声 (Q&A) 機能 ---
+    // ==========================================
+    
+    const allVoiceTopics = `このお店の良いところ
+このお店を選んだきっかけは？
+初めて出勤した日の大まかな流れは？
+体験入店するまえに面接で聞かれたことや質問してみたこと
+シフトの入れ方や提出方法
+未経験で初めて覚えたテーブルマナー
+ポケパラのブログは応募先を決める際に参考になりますか？
+どんな女の子に向いていますか？
+働きやすい職場をアピールするとしたら？
+靴を選ぶときの基本的なルール
+初めてナイトワークしたとき何が一番不安でしたか？
+働き始める前にイメージしていたこととの大きな違いは何ですか？
+はじめて面接や体験入店したときに準備したこと
+ポケパラ体入で女の子の声の重要性ってなんだと思う？
+誰でも簡単ではない仕事だと思うことはありますか？
+女の子同士が仲が良いと働きやすい、一番の理由は何ですか？
+この先ずっと将来にわたって役立つ何かが身につきましたか？
+時給や待遇がまったく同じでも、居酒屋やカフェのバイトよりナイトワークを選びますか？
+ナイトワークし始めて最初に学んだこと
+未経験ならではの不安はどのように解消されましたか？
+ブログが求人の応募を増やすきっかけになると考えていますか？
+この仕事をしてよかったと思うことはなんですか？
+美意識が求められる仕事において、日頃からどんなことを心がけていますか？
+ナイトワークするとどんなことを学べますか？
+ナイトワークしてみなければ感じられない大きな魅力とは？
+ナイトワークを長く続けられるコツはありますか？
+やりがいをどんな瞬間に感じますか？
+ナイトワークして得たスキルをどんな仕事で活かせそうですか？
+働くモチベーションを上げているものはなんでしょう？
+ナイトワークを続けて、これからもっと身につけたいスキルはなんですか？
+ナイトワークはなぜ高時給なのでしょう？
+体験入店して見極めておきたいポイント
+お客様から学んだことはありますか？
+お客様は何を求めて来店しているのか、それに対してどのような意識で接客するように心がけていますか？
+求められる人材とは？
+ナイトワークするうえで心強いサポートとは？
+達成感が得られる瞬間とは？
+他の仕事だったらなかなか巡り会えないお客様。
+仕事目線でブログを読むことはありますか？
+今の業種を選んだ理由は？
+ポケパラの素敵なところ
+ナイトワークするのに向いていそうなタイプ
+いくつまで続けたいですか？夜職するのは何歳まで？
+接客におけるひと工夫とは？
+バレたくない気持ちはありますか？
+いい女ってどんな女ですか？
+毎日がんばってる自分へのプチご褒美プチ贅沢はなんですか？
+ぽっちゃりとデブの境界線てどこですか？
+同じ職業の人に聞いてみたいことはありますか？
+苦手を克服するコツとは？
+仕事に対して具体的な目標を立てていますか？
+モチベーションが下がり気味のときはどうしていますか？
+食生活で気をつけていることはありますか？
+参考にしてるメイクとか憧れの存在とかいるならきいてみたいなって思いました。
+お客様モテするLINEテクってありますか？
+身だしなみで自分なりに気を配っていることは？
+自分のポリシー
+お給料の使い道
+何歳まで？
+時間の使い方
+無口なお客様を接客するコツ
+二日酔い対策は？
+知識を増やすコツ
+苦手なタイプのお客様
+どんな女の子が人気になりますか？
+上手なかわし方
+ミスしたときの対処法
+日払いしてもらうメリット
+会話がスムーズに続くコツ
+夜職するうえで気をつけていること
+次回の来店につなげるための工夫
+初対面のお客様との接し方
+​​自分だけの強み
+人見知りの克服法
+体調管理のコツ
+ストレス発散に効果的なこと
+スタイル維持の秘訣
+​​ナイトワークに役立つ習い事
+想像していたより大変だと思ったこと。
+良好な人間関係の築き方。
+今だから言える新人時代の恥ずかしい失敗談
+働いていて楽しいと感じる瞬間
+お客様に気に入られるようになったきっかけ
+素の自分とキャラ設定、売れる接客はどっち？
+愛嬌がある女の子の仕草って例えばどんな子
+短い睡眠時間でもきれいを保つ美容法
+話していて心地良い聞き上手な女の子の特徴
+売上アップにつながる上手なドリンクのおねだり方法
+お客様の顔と名前を覚えるために意識していること
+営業ラインっぽくせずに次回来店に繋げるコツ
+入店を考えてる女の子を後押しする一言
+どんな会話でお客様を楽しませているのか
+お客様にいつまでも飽きられない接客テクニック
+お客様の席についた時、第一印象を良くするためにしている工夫
+新人でもできるお客様を楽しませる接客術
+これから一緒に働く新米キャストに伝えたいこと
+仕事モードをオンに切り替える自分なりのルーティン
+ポジティブな気持ちで楽しく接客するコツ
+チームワークを発揮してトークを盛り上げる方法
+夜遅くまでお客様を接客してもメイクを崩さないコツ
+次の来店につなげるために意識している自撮りテク
+お客様だけではなく同性からも人気がある女の子の共通点
+色恋を求めているお客様への対応
+本当に素敵なお客様の神客エピソード
+一緒に働いている女の子や内勤のボーイさんへの一言
+ポケパラのブログを続けていて良かったこと
+人を惹きつける色気がある女性の共通点
+はじめて体入したときにびっくりした出来事
+ナイトワークをはじめたころよりも成長を感じること
+今使っている源氏名に決めたわけ
+モテそうと感じる女の子の特徴
+もう辞めたいと思った時に頑張れた理由
+接客するうえで愛されキャラならではの強み
+飲めないときにさりげなくお客様とのお酒を断る方法
+不安そうな体験入店の子にしてあげたいサポート
+昼職や大学とうまく掛け持ちするコツ
+新人時代に先輩キャストやスタッフからフォローしてもらえて嬉しかったこと
+フリーで来てくれたお客様の記憶に残るための工夫
+新しい環境になじめたきっかけ
+ブログや女の子の声を読んでいて接客に活かせたこと
+高時給なナイトワークを選んだきっかけ
+働く前にイメージしていた客層との違い
+実際に働いてみて気づいた職場の魅力
+綺麗を保つために定期的に行っている美容
+年上や年下など年代が異なるお客様に好印象を持たれる接客術
+新人さんと接するうえで心がけていること
+体験談を読んで参考になったこと
+応募しようと思っている子に教えてあげたい自慢のインテリアデザイン
+本入店や体験する前に知っておきたい職場のルール
+在籍している女の子たちの魅力やタイプ
+きっと体験入店してみたくなる注目してほしい魅力
+応募して体験入店する前に教えてあげたい客層の良さ
+風通しがとても良い職場をアピールするとしたら
+強みとしてアピールしたい知名度の高さや集客力のすごさ
+清潔で気持ちよく働けるなと感じている理由
+一緒に働くメンバーの役職や呼び方
+男性がいる、女性しかいない職場で働くそれぞれのメリット
+甘えるとわがままの境界線
+ガチ恋のお客様への対応や上手にあしらうテクニック
+面接でありそうな質問、どんなキャストさんになりたいか
+面接でアピールしたい自分の強みや誰にも負けないこと
+夜から朝方までメイクを崩さないためのお守りコスメ
+店に来てくれたお客様を恋愛対象として見られますか？
+ナイトワークをはじめる前と比べて一番増えた出費
+プライベートで会いたがるお客様にどんな対応をしていますか？
+モチベをキープしたまま働くための出勤ペース
+カップルで来てくれたお客様を楽しませるコツ
+お客様をよろこばせるためにトークスキルは必要ですか
+こんなスタッフさんに働きにきてほしい！
+苦手なタイプのお客様の席についた時、どんな対応をしていますか？
+トークを盛り上げるきっかけになった趣味
+接客の時に演じるキャラや自分の売りの見つけ方
+最近ほめられたことや叱られたこと
+目標にしている女性や自分を元気づけてくれる推しはいますか。
+夜職って偏見もたれてるなと思った瞬間
+休憩する場所や休み時間の過ごし方
+ポケパラでブログを更新するときにこだわっていること
+接客のスランプに陥ったらどうやって脱出していますか？
+そもそもポケパラを知ったきっかけ
+よりルックスを磨くために取り入れている自分なりの健康法
+日常生活で実感したナイトワークの職業病といえば
+自分のページを見せて宣伝するコツ
+ぜったいに盛り上がる会話のネタ
+これまでナイトワークしてきていちばんビックリしたお客様とのエピソード
+初心者のためのマニュアルや講習
+太客をつかむために求められることといえば
+キャストの外見に悪口を言うお客様にどんな対応をしていますか？
+衣装があってよかったこと、私服で働けるメリット
+下ネタで盛り上がりたいお客様への返答について
+団体客を盛り上げるのとマンツーマンでの接客なら、どっちが得意なタイプですか？
+入店してから職場に慣れてきたなと思うようになるまでの期間
+自分なりにこだわっているヘアアレンジのポイント
+集客のためにSNSをどのように活用していますか？
+初心者にもわかりやすく業種による違いを教えてください。
+自分だけのメイクのこだわり
+自分にとってどうしても外せない待遇や譲りたくない条件
+最近ピンチだったこととそれを乗り越えた方法
+お客様を勘違いさせない、色恋に持ち込ませないコツ
+この１年で成長できたのかなと実感していること
+最近お気に入りでおすすめなファッションブランド
+この先の１年でこうなりたいと思っている目標
+10年後になっていたいなと思っている自分
+まだ夜職しはじめたばかりの新人時代に頑張ったこと
+こっそりしている防寒対策
+これまでに経験したことのあるアルバイト
+ランキングって意識してますか？
+きっとナイトワークしなければ感じられないやりがい
+ほかでバイトした経験を通じて今に活かせていること
+いつも出勤したら真っ先にやっていること
+入店して真っ先に先輩やスタッフさんから教えてもらったこと
+これってウチだけって思うようなハウスルール
+新しい職場にできるだけはやくなじむためにした工夫や心がまえ
+新人さんがいっぱい入ってくるなと感じる時期やタイミング
+美しさを磨くためにあえてしていないこと
+女の子同士でのプライベートな付き合い
+ありがちな答えにくい質問とうまい返し方
+仕事中に身につけているアイテム
+緊張しがちな新人さんに教えてあげたいアドバイス
+だれからも好かれる聞き上手になるためのコツ
+親しみやすさを感じてもらえるように心がけていること
+来店するお客様の年齢層ってだいたいどれくらい？
+プライベートと意識して変化をつけていること
+お客様に悲しい話をされたときの対応
+特別感を与えられるようにさりげなく演出していること
+プライベートでつい使ってしまう専門用語
+あまり興味のない話を聞くときにしている工夫
+持ち物を褒めて喜んでもらうために意識していること
+好印象をもたれるように相手に共感するちょっとしたコツ
+また来店したいと思われるために大事にしている意識
+お客様に対してやってはいけないマナーの基本
+夜職していそうだなと思う女性の特徴
+お客様のプライベートなことに触れるのはどのくらいまで？
+敬語や言葉遣いでちょっと強めに意識していること
+50代よりもずっと上の世代とうまく接するコツ
+同業さんを接客するときとくに意識していること
+夜職していてツラいなと思うこと
+夜職して得られたものと、もしかしたら失ってしまったかもしれないこと
+ウソや隠し事がバレてしまったときの対処法
+他店を気にしたりチェックしたりすることはありますか？
+相手を不快にさせたりイラッとさせない上手なやんわりした断り方
+所作が美しくて上品で魅力的だなと思う女性に共通する特徴
+せっかくならウチに応募してっていうアピールを
+ルックスよりもビジュアルよりもたいせつだと思うこと
+おねだり上手になるコツ
+色気があるなと感じる女性の特徴
+マンネリしないで新鮮な気持ちをキープするために心がけていること
+どんなにルックスがよくてもナイトワークするのにあまり向いてない人
+新人時代に学んでおくべきこと
+いるだけで場が明るくなるムードメーカーって？
+あらかじめこれくらいは身につけておきたいマナー
+モチベーションにつながった印象に残っているエピソード
+あまり在籍していなさそうなタイプ
+当日にどうしても欠勤しなければならなくなったときにすべきこと
+男ウケしてモテそうなボーイッシュ女子
+ほかでバイトするよりレアな体験ができると思ったこと
+会話していて気まずくならないテクニックやコツ
+上品な印象をもたれるために心がけていること
+他の女の子と差をつけるために意識していること
+ほどよいスキをつくって好印象を与えるコツ
+癒し系だなと思う女の子の特徴
+あらかじめ知っておきたい暗黙のルール
+爆弾とは？なりたての新人さんがとくに注意すべきこと
+出稼ぎしてみるならどんな条件で？
+髪色のルールや好感度がアップするマナーとは
+新人のころに戻るとしたら何に力を入れて頑張りますか？
+新人にしかない強みとアピールするコツ
+いくつもあるなかから今の業種を選んでよかったと思うこと
+仕事がある日の１日のスケジュールは？
+実はコソッと努力していること
+応募する先を選ぶ基準やゆずれない条件
+これから体験入店する子にアピールしたい職場の雰囲気
+ダブルワークしてみようと考えている子にアドバイスするとしたら？
+マナーとして意識している香り
+在籍しているなかで掛け持ちしている女の子ってどれくらい？
+夜職しながら夜職する、掛け持ちするメリットは？
+夜職するなら守りたいルール
+入店してからポケパラについて教えてもらったこと
+20代のお客様が来店する割合と満足させるコツ
+エリアにもたれがちなイメージと実際の違いや特徴
+おひとりさま客の割合
+平日と週末で来店するお客様のちがいや特徴
+ポケパラするのにつかっている時間
+出張しているときに遊びにくるお客様はどのくらい？
+長期休暇に遊びにくるお客様とふだんとのちがい
+海外からのお客様を迎えるときの心がまえやマナー
+そんなお客様はちょっと
+働きはじめて学んで日常生活にも活かせているマナー
+姿勢が美しくなるように具体的に意識していること
+失礼だなと思うことを言われたときに心がけていること
+綺麗な飲み方とは？
+印象に残っているお客様とのエピソード
+女性のお客様が来店することは？
+人見知りのお客様と接するときに心がけていること
+どうやってモチベーションを保ってるの？
+キャバクラでホールを担当するスタッフさんに質問したいこと
+そもそもナイトワークしようと思ったきっかけや働いてる目的や目標
+おなじキャストさん同士、立場のちがうキャストさんやスタッフさんに気を遣っていること
+自分の職場ならではの香りとしての特徴は？
+この仕事をしてよかったと思う瞬間
+自分磨きしようというモチベーションはどこから？
+働きやすさをトイレでアピールするとしたら？
+いま夜職しているからこそ昼職すれば活かせそうなスキル
+プロフェッショナルな印象を与える清潔感とは
+自分らしさって、どこまで出していいんだろう？
+プロとして髪の手入れでとくに心がけていること
+褒められたときに好感度がアップする上手なリアクション
+美容のために月にどれくらい自分にお金を費やしてるか
+オープニングスタッフとして働くメリット
+生活リズムのほか価値観や金銭感覚でズレを感じること
+この仕事をしていなかったら何をしているか？
+仕事とプライベートの切り替えってどうしてますか？
+辞めたくなった瞬間と続けた理由
+好印象につながるお客様ウケがいいネイルとは？
+ポケパラとはどんなサイトですか？
+スキンケアでとくに意識していること
+ポケパラをうまく活用するためにしている工夫
+お友達と一緒に応募したことはある？
+声のトーンでふだんよりも意識していること
+いまの職場をよりよくするために意識していること
+夜職する前と後でモチベーションはどう変化した？
+初対面のお客様に、タメ口か敬語か
+仕事終わりのルーティンってありますか？
+色気って何だと思う？
+知り合いが来店したらどう対応する？
+何に一番お金を使っているのか
+夜の仕事ならではの面白いエピソード
+人見知りでもやっていけてる？
+これは他のお店には負けない！って思う強み
+未経験者に向けてどんなテーマがあれば役立ちそう？
+そもそも客層のよさとは具体的にどんな特徴が？
+暑い季節だからこその寒さ対策
+初めてご来店されたお客様でも自然に話しやすい雰囲気を作る方法
+うちのお店で働くとこんなメリットがあるよ！
+体験入店するだけでなくじっさいに働いてからわかったこと
+未経験で入店した女の子はどのくらい？
+未経験者が最初の1ヶ月でとくに意識したいこと
+初めてナイトワークするときにこれを最初に知っておきたかった！
+未経験の子が初めて出勤するまでに準備しておくべきこと`.split('\n').map(s => s.trim()).filter(s => s !== '');
+
+    let answeredVoiceTopics = JSON.parse(localStorage.getItem('answeredVoiceTopics')) || [];
+
+    // --- タブ切り替え処理 ---
+    window.switchVoiceTab = function(tabName) {
+        const unAnsList = document.getElementById('unansweredList');
+        const ansList = document.getElementById('answeredList');
+        const tabUnAns = document.getElementById('tabUnanswered');
+        const tabAns = document.getElementById('tabAnswered');
+
+        if (tabName === 'unanswered') {
+            unAnsList.style.display = 'block';
+            ansList.style.display = 'none';
+            tabUnAns.classList.add('active');
+            tabAns.classList.remove('active');
+        } else {
+            unAnsList.style.display = 'none';
+            ansList.style.display = 'block';
+            tabUnAns.classList.remove('active');
+            tabAns.classList.add('active');
         }
     };
 
-    window.deleteArticle = function(index) {
-        if(!confirm('本当に削除しますか？')) return;
-        
-        articles.splice(index, 1);
-        localStorage.setItem('blogStock', JSON.stringify(articles));
-        
-        if (index === editingIndex) resetEditor();
-        else if (index < editingIndex) {
-            editingIndex--;
-            renderArticles();
-        } else {
-            renderArticles();
+    function renderVoiceTopics() {
+        const unAnsUl = document.getElementById('unansweredList');
+        const ansUl = document.getElementById('answeredList');
+        unAnsUl.innerHTML = '';
+        ansUl.innerHTML = '';
+
+        allVoiceTopics.forEach((topic) => {
+            const li = document.createElement('li');
+            li.className = 'voice-item';
+            
+            li.innerHTML = `
+                <div class="voice-text">${topic}</div>
+                <button class="btn-voice" onclick="generateVoiceAnswer('${topic}', this)">🤖 出力(コピー)</button>
+            `;
+            
+            if (answeredVoiceTopics.includes(topic)) {
+                ansUl.appendChild(li);
+            } else {
+                unAnsUl.appendChild(li);
+            }
+        });
+    }
+
+    window.toggleVoiceStatus = function(topic, isAnswered) {
+        if (isAnswered) {
+            if (!answeredVoiceTopics.includes(topic)) answeredVoiceTopics.push(topic);
+        }
+        localStorage.setItem('answeredVoiceTopics', JSON.stringify(answeredVoiceTopics));
+        renderVoiceTopics();
+    };
+
+    window.generateVoiceAnswer = async function(topic, btnElement) {
+        const apiKey = apiKeyInput.value.trim();
+        if (!apiKey) {
+            alert("右上の⚙マークからGemini APIキーを設定してください。");
+            toggleRightMenu();
+            return;
+        }
+
+        const orgText = btnElement.innerHTML;
+        btnElement.innerHTML = '⏳ 生成中...';
+        btnElement.disabled = true;
+
+        try {
+            const systemPrompt = `あなたは水商売・コンセプトカフェで働く魅力的な先輩キャストです。
+以下の「女の子の声」というブログのQ&Aコーナーのお題に対して、未経験の女の子やこれからキャストになろうと悩んでいる読者に向けて、親身になって優しくアドバイスするような回答を考えてください。
+不安を和らげ、お店で働くのが楽しみになるような、ポジティブで自然な文章にしてください。
+絵文字も適度に使用してください。`;
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    contents: [{ parts: [{ text: `お題：${topic}\nこのお題に対する回答のみを出力してください。` }] }],
+                    generationConfig: { temperature: 0.8 }
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
+
+            const resultText = data.candidates[0].content.parts[0].text.trim();
+            
+            const textToCopy = `【Q. ${topic}】\n${resultText}`;
+            await navigator.clipboard.writeText(textToCopy);
+            
+            toggleVoiceStatus(topic, true);
+            
+            alert("回答を生成し、クリップボードにコピーしました！\nエディタ等に貼り付けてください。");
+            
+        } catch (err) {
+            alert("回答の生成に失敗しました。\n詳細: " + err.message);
+        } finally {
+            btnElement.innerHTML = orgText;
+            btnElement.disabled = false;
         }
     };
 
     window.addEventListener('DOMContentLoaded', () => {
         resetEditor();
+        renderVoiceTopics(); 
     });
 </script>
 
