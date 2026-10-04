@@ -1114,10 +1114,15 @@
         btnElement.disabled = true;
 
         try {
-            // プロンプトのトーンを誠実で落ち着いた内容に修正
+            // 文字数制限（50文字以上、200文字以内）を厳格に指定したプロンプト
             const systemPrompt = `あなたは水商売・コンセプトカフェで働く、経験豊富で頼りになる先輩キャストです。
 以下の「女の子の声」というブログのQ&Aコーナーのお題に対して、未経験の女の子やこれからキャストになろうと悩んでいる読者に向けて、真摯で丁寧なアドバイスを記述してください。
-過度に軽いトーンや過剰な絵文字は控え、誠実さ、安心感、そして働くことへの前向きな姿勢が伝わる落ち着いた文章にしてください。`;
+過度に軽いトーンや過剰な絵文字は控え、誠実さ、安心感、そして働くことへの前向きな姿勢が伝わる落ち着いた文章にしてください。
+
+【厳守事項】
+・回答の文字数は必ず「50文字以上、200文字以内」に収めてください。
+・50文字未満は絶対に出力しないでください。最低条件です。
+・短すぎず、長すぎない、適切なボリュームを意識してください。`;
 
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
@@ -1136,7 +1141,6 @@
 
             const resultText = data.candidates[0].content.parts[0].text.trim();
             
-            // 【Q. お題】を削除し、回答のみをクリップボードにコピー
             const textToCopy = resultText;
             await navigator.clipboard.writeText(textToCopy);
             
