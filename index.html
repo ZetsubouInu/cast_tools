@@ -396,6 +396,85 @@
             cursor: not-allowed;
         }
 
+        /* --- ワンクッション（結果確認）モーダル --- */
+        .modal-container {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100vh; height: 100dvh;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: none; 
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .modal-container.show {
+            display: flex;
+            opacity: 1;
+        }
+        .result-box {
+            background: #fff;
+            width: 90%;
+            max-width: 360px;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-sizing: border-box;
+        }
+        .result-box h3 {
+            margin: 0 0 10px 0;
+            color: #ff4757;
+            font-size: 16px;
+            text-align: center;
+        }
+        .result-hint {
+            font-size: 12px;
+            color: #666;
+            margin: 0 0 10px 0;
+            text-align: center;
+        }
+        .result-textarea {
+            width: 100%;
+            height: 160px;
+            padding: 12px;
+            font-size: 14px;
+            line-height: 1.5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            resize: none;
+            margin-bottom: 15px;
+        }
+        .result-textarea:focus {
+            outline: none;
+            border-color: #ff4757;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-modal-close {
+            flex: 1;
+            padding: 12px;
+            background: #e9ecef;
+            color: #555;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-modal-copy {
+            flex: 2;
+            padding: 12px;
+            background: #ff4757;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
         .storage-info {
             margin-top: 10px;
             padding-top: 10px;
@@ -501,6 +580,19 @@
         </div>
     </div>
 
+    <!-- 追加：ワンクッション結果確認用モーダル -->
+    <div class="modal-container" id="resultModal">
+        <div class="result-box">
+            <h3>✨ 回答が完成しました！</h3>
+            <p class="result-hint">手直しすることもできます。</p>
+            <textarea id="resultTextarea" class="result-textarea"></textarea>
+            <div class="modal-actions">
+                <button class="btn-modal-close" onclick="closeResultModal()">閉じる</button>
+                <button class="btn-modal-copy" id="copyResultBtn">📋 コピーする</button>
+            </div>
+        </div>
+    </div>
+
 <script>
     const titleInput = document.getElementById('titleInput');
     const editor = document.getElementById('editor');
@@ -515,6 +607,7 @@
 
     let articles = JSON.parse(localStorage.getItem('blogStock')) || [];
     let editingIndex = -1; 
+    let currentTopicForCopy = ""; // 女の子の声のお題記録用
 
     // --- 設定の読み込み ---
     templateInput.value = localStorage.getItem('blogTemplateText') || '';
@@ -1082,7 +1175,7 @@
             
             li.innerHTML = `
                 <div class="voice-text">${topic}</div>
-                <button class="btn-voice" onclick="generateVoiceAnswer('${topic}', this)">🤖 出力(コピー)</button>
+                <button class="btn-voice" onclick="generateVoiceAnswer('${topic}', this)">🤖 回答を作成</button>
             `;
             
             if (answeredVoiceTopics.includes(topic)) {
@@ -1101,6 +1194,57 @@
         renderVoiceTopics();
     };
 
+    // --- ワンクッションモーダル操作 ---
+    window.openResultModal = function(text, topic) {
+        document.getElementById('resultTextarea').value = text;
+        currentTopicForCopy = topic;
+        const modal = document.getElementById('resultModal');
+        modal.style.display = 'flex';
+        // CSSアニメーションのために少し遅らせてclassを追加
+        setTimeout(() => modal.classList.add('show'), 10);
+    };
+
+    window.closeResultModal = function() {
+        const modal = document.getElementById('resultModal');
+        modal.classList.remove('show');
+        setTimeout(() => modal.style.display = 'none', 300);
+    };
+
+    // モーダル内の手動コピーボタン処理（ブラウザ制限を回避）
+    document.getElementById('copyResultBtn').addEventListener('click', async function() {
+        const text = document.getElementById('resultTextarea').value;
+        const btn = this;
+        try {
+            await navigator.clipboard.writeText(text);
+            btn.innerHTML = '✔ コピー完了！';
+            btn.style.backgroundColor = '#28a745';
+            
+            // コピーが成功したら回答済みに移動
+            toggleVoiceStatus(currentTopicForCopy, true);
+            
+            setTimeout(() => {
+                btn.innerHTML = '📋 コピーする';
+                btn.style.backgroundColor = '#ff4757';
+                closeResultModal();
+            }, 1500);
+        } catch (err) {
+            // 万が一、古いスマホなどでエラーが出た場合の保険（レガシーコピー）
+            const textArea = document.getElementById('resultTextarea');
+            textArea.select();
+            document.execCommand('copy');
+            
+            btn.innerHTML = '✔ コピー完了！';
+            btn.style.backgroundColor = '#28a745';
+            toggleVoiceStatus(currentTopicForCopy, true);
+            
+            setTimeout(() => {
+                btn.innerHTML = '📋 コピーする';
+                btn.style.backgroundColor = '#ff4757';
+                closeResultModal();
+            }, 1500);
+        }
+    });
+
     window.generateVoiceAnswer = async function(topic, btnElement) {
         const apiKey = apiKeyInput.value.trim();
         if (!apiKey) {
@@ -1114,7 +1258,6 @@
         btnElement.disabled = true;
 
         try {
-            // 文字数制限（50文字以上、200文字以内）を厳格に指定したプロンプト
             const systemPrompt = `あなたは水商売・コンセプトカフェで働く、経験豊富で頼りになる先輩キャストです。
 以下の「女の子の声」というブログのQ&Aコーナーのお題に対して、未経験の女の子やこれからキャストになろうと悩んでいる読者に向けて、真摯で丁寧なアドバイスを記述してください。
 過度に軽いトーンや過剰な絵文字は控え、誠実さ、安心感、そして働くことへの前向きな姿勢が伝わる落ち着いた文章にしてください。
@@ -1141,12 +1284,8 @@
 
             const resultText = data.candidates[0].content.parts[0].text.trim();
             
-            const textToCopy = resultText;
-            await navigator.clipboard.writeText(textToCopy);
-            
-            toggleVoiceStatus(topic, true);
-            
-            alert("回答を生成し、クリップボードにコピーしました！\nエディタ等に貼り付けてください。");
+            // ワンクッション画面（モーダル）を開いて結果を表示
+            openResultModal(resultText, topic);
             
         } catch (err) {
             alert("回答の生成に失敗しました。\n詳細: " + err.message);
