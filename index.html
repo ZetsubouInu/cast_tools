@@ -335,7 +335,7 @@
         .voice-tabs {
             display: flex;
             gap: 10px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             flex-shrink: 0;
         }
         .voice-tab {
@@ -353,6 +353,26 @@
         .voice-tab.active {
             background-color: #007BFF;
             color: white;
+        }
+        
+        /* 検索ボックスのスタイル */
+        .voice-search {
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
+        .voice-search input {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            -webkit-appearance: none;
+        }
+        .voice-search input:focus {
+            outline: none;
+            border-color: #007BFF;
+            box-shadow: 0 0 5px rgba(0,123,255,0.3);
         }
 
         .voice-list {
@@ -570,6 +590,11 @@
             <button id="tabUnanswered" class="voice-tab active" onclick="switchVoiceTab('unanswered')">未回答</button>
             <button id="tabAnswered" class="voice-tab" onclick="switchVoiceTab('answered')">回答済み</button>
         </div>
+        
+        <!-- 追加：検索ボックス -->
+        <div class="voice-search">
+            <input type="text" id="voiceSearchInput" placeholder="🔍 お題を検索..." onkeyup="filterVoiceTopics()">
+        </div>
 
         <div class="voice-scroll-area">
             <ul id="unansweredList" class="voice-list"></ul>
@@ -633,9 +658,9 @@
 
     let articles = JSON.parse(localStorage.getItem('blogStock')) || [];
     let editingIndex = -1; 
-    let currentTopicForCopy = ""; // 女の子の声のお題記録用
-    let currentDecoHtml = "";     // AI装飾のHTML保持用
-    let currentDecoPlain = "";    // AI装飾のプレーンテキスト保持用
+    let currentTopicForCopy = ""; 
+    let currentDecoHtml = "";     
+    let currentDecoPlain = "";    
 
     // --- 設定の読み込み ---
     templateInput.value = localStorage.getItem('blogTemplateText') || '';
@@ -779,7 +804,7 @@
     window.openDecoModal = function(html, plain) {
         currentDecoHtml = html;
         currentDecoPlain = plain;
-        document.getElementById('decoPreview').innerHTML = html; // 装飾結果をプレビュー表示
+        document.getElementById('decoPreview').innerHTML = html; 
         const modal = document.getElementById('decoModal');
         modal.style.display = 'flex';
         setTimeout(() => modal.classList.add('show'), 10);
@@ -810,7 +835,6 @@
                 closeDecoModal();
             }, 1500);
         } catch (err) {
-            // レガシーコピーでのフォールバック処理（古いスマホ対応）
             try {
                 const listener = function(ev) {
                     ev.clipboardData.setData('text/html', currentDecoHtml);
@@ -834,7 +858,7 @@
         }
     });
 
-    // --- AI装飾・コピー機能（通常コピーとAIコピー） ---
+    // --- コピー機能（通常コピーとAIコピー） ---
     async function decorateText(inputText) {
         const apiKey = apiKeyInput.value.trim();
         if (!apiKey) throw new Error("API_KEY_MISSING");
@@ -864,21 +888,29 @@
     // 通常のコピー（AI通信なし）
     window.copyArticle = async function(i, btn) {
         try {
-            const template = templateInput.value.trim(); const body = articles[i].text;
-            let fHtml = '', fPlain = '';
-            if(template!==''){
-                const brs = '<br>'.repeat(10); const nls = '\n'.repeat(10);
-                fHtml = brs + template.replace(/\n/g,'<br>') + brs + body;
-                fPlain = nls + template + nls + body.replace(/<[^>]*>?/gm, '');
-            } else { fHtml = body; fPlain = body.replace(/<[^>]*>?/gm, ''); }
-            if(!fHtml.includes('<br>')&&!fHtml.includes('<span')) fHtml = fHtml.replace(/\n/g,'<br>');
+            const template = templateInput.value.trim(); 
+            const bodyPlain = articles[i].text || '';
+            const bodyHtml = bodyPlain.replace(/\n/g, '<br>'); 
             
-            await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([fHtml],{type:'text/html'}), 'text/plain': new Blob([fPlain],{type:'text/plain'}) })]);
+            let fHtml = '', fPlain = '';
+            if(template !== ''){
+                const brs = '<br>'.repeat(10); 
+                const nls = '\n'.repeat(10);
+                fHtml = brs + template.replace(/\n/g,'<br>') + brs + bodyHtml;
+                fPlain = nls + template + nls + bodyPlain;
+            } else { 
+                fHtml = bodyHtml; 
+                fPlain = bodyPlain; 
+            }
+            
+            await navigator.clipboard.write([new ClipboardItem({ 
+                'text/html': new Blob([fHtml], {type:'text/html'}), 
+                'text/plain': new Blob([fPlain], {type:'text/plain'}) 
+            })]);
+            
             const org=btn.innerHTML; btn.innerHTML='✔ 完了'; btn.style.backgroundColor='#218838';
             setTimeout(()=>{ btn.innerHTML=org; btn.style.backgroundColor=''; }, 2000);
-        } catch(e) { 
-            alert('コピー失敗'); 
-        }
+        } catch(e) { alert('コピー失敗'); }
     };
     
     // AI装飾コピー（ワンクッション形式）
@@ -890,14 +922,16 @@
             const decoratedHtml = await decorateText(articles[i].text);
             const template = templateInput.value.trim();
             let fHtml = '', fPlain = '';
-            if(template!==''){
-                const brs = '<br>'.repeat(10); const nls = '\n'.repeat(10);
+            if(template !== ''){
+                const brs = '<br>'.repeat(10); 
+                const nls = '\n'.repeat(10);
                 fHtml = brs + template.replace(/\n/g,'<br>') + brs + decoratedHtml;
                 fPlain = nls + template + nls + decoratedHtml.replace(/<[^>]*>?/gm, '');
-            } else { fHtml = decoratedHtml; fPlain = decoratedHtml.replace(/<[^>]*>?/gm, ''); }
-            if(!fHtml.includes('<br>')&&!fHtml.includes('<span')) fHtml = fHtml.replace(/\n/g,'<br>');
+            } else { 
+                fHtml = decoratedHtml; 
+                fPlain = decoratedHtml.replace(/<[^>]*>?/gm, ''); 
+            }
             
-            // 直接コピーせず、モーダルを開く
             openDecoModal(fHtml, fPlain);
             
             btn.innerHTML = '✔ 完了'; btn.style.backgroundColor = '#218838';
@@ -1281,7 +1315,31 @@
                 unAnsUl.appendChild(li);
             }
         });
+        
+        // リスト再描画後も検索フィルタを適用
+        filterVoiceTopics();
     }
+    
+    // --- 追加：検索機能 ---
+    window.filterVoiceTopics = function() {
+        const query = document.getElementById('voiceSearchInput').value.toLowerCase();
+        const unAnsItems = document.getElementById('unansweredList').getElementsByTagName('li');
+        const ansItems = document.getElementById('answeredList').getElementsByTagName('li');
+
+        const applyFilter = (items) => {
+            for (let i = 0; i < items.length; i++) {
+                const text = items[i].querySelector('.voice-text').innerText.toLowerCase();
+                if (text.includes(query)) {
+                    items[i].style.display = 'flex';
+                } else {
+                    items[i].style.display = 'none';
+                }
+            }
+        };
+
+        applyFilter(unAnsItems);
+        applyFilter(ansItems);
+    };
 
     window.toggleVoiceStatus = function(topic, isAnswered) {
         if (isAnswered) {
