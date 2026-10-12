@@ -60,16 +60,25 @@
             color: #ff4757;
             border: 1px solid #ffd6e0;
             border-radius: 20px;
-            padding: 6px 12px;
-            font-size: 13px;
+            padding: 6px 10px;
+            font-size: 12px;
             font-weight: bold;
             cursor: pointer;
-            margin-left: 10px;
+            margin-left: 8px;
             white-space: nowrap;
             transition: background-color 0.2s;
         }
         .btn-voice-header:active {
             background-color: #ffe4ec;
+        }
+        /* お知らせ用ボタンの色 */
+        .btn-news-header {
+            background-color: #e0f7fa; 
+            color: #00acc1;
+            border: 1px solid #b2ebf2;
+        }
+        .btn-news-header:active {
+            background-color: #e0f2f1;
         }
 
         /* --- メインのエディタ画面 --- */
@@ -355,7 +364,6 @@
             color: white;
         }
         
-        /* 検索ボックスのスタイル */
         .voice-search {
             margin-bottom: 15px;
             flex-shrink: 0;
@@ -416,7 +424,7 @@
             cursor: not-allowed;
         }
 
-        /* --- ワンクッション（結果確認）モーダル共通 --- */
+        /* --- モーダル共通 --- */
         .modal-container {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100vh; height: 100dvh;
@@ -507,6 +515,40 @@
             cursor: pointer;
             transition: background 0.2s;
         }
+        
+        /* --- お知らせ長押しボタンのスタイル --- */
+        .btn-long-press {
+            width: 100%;
+            padding: 14px;
+            background-color: #f1f3f5;
+            color: #555;
+            border: 2px solid #00acc1;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+            outline: none;
+        }
+        .btn-long-press::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 0%;
+            background-color: #e0f7fa;
+            transition: none;
+            z-index: 1;
+        }
+        .btn-long-press.pressing::before {
+            width: 100%;
+            transition: width 3s linear;
+        }
+        .btn-long-press span {
+            position: relative;
+            z-index: 2;
+        }
 
         .storage-info {
             margin-top: 10px;
@@ -539,6 +581,7 @@
             <h1 class="app-title">ブログエディタ</h1>
         </div>
         <div class="header-right">
+            <button class="btn-voice-header btn-news-header" onclick="toggleNewsDrawer()">📢 お知らせ</button>
             <button class="btn-voice-header" onclick="toggleVoiceMenu()">女の子の声</button>
             <button class="menu-btn" onclick="toggleRightMenu()">⚙</button>
         </div>
@@ -591,7 +634,6 @@
             <button id="tabAnswered" class="voice-tab" onclick="switchVoiceTab('answered')">回答済み</button>
         </div>
         
-        <!-- 追加：検索ボックス -->
         <div class="voice-search">
             <input type="text" id="voiceSearchInput" placeholder="🔍 お題を検索..." onkeyup="filterVoiceTopics()">
         </div>
@@ -599,6 +641,17 @@
         <div class="voice-scroll-area">
             <ul id="unansweredList" class="voice-list"></ul>
             <ul id="answeredList" class="voice-list" style="display: none;"></ul>
+        </div>
+    </div>
+
+    <!-- 右メニュー（お知らせ履歴） -->
+    <div class="drawer drawer-right" id="newsDrawer">
+        <div class="panel-header">
+            <h3>📢 お知らせ履歴</h3>
+            <button class="btn-close" onclick="closeAllMenus()">×</button>
+        </div>
+        <div class="voice-scroll-area">
+            <ul id="newsHistoryList" class="article-list"></ul>
         </div>
     </div>
 
@@ -615,6 +668,18 @@
             <p class="setting-hint" style="color: #d63031; font-weight: bold;">
                 ※リストの「✨AI装飾」または「女の子の声」ボタンを押した際、APIを利用して自動処理を行います。
             </p>
+        </div>
+    </div>
+
+    <!-- お知らせ起動時モーダル -->
+    <div class="modal-container" id="newsModal">
+        <div class="result-box" style="border: 2px solid #00acc1;">
+            <h3 style="color: #00acc1;">📢 運営からのお知らせ</h3>
+            <p id="newsModalDate" style="font-size:12px; color:#666; text-align:right; margin:0;"></p>
+            <div id="newsModalText" style="font-size:14px; margin: 15px 0; line-height: 1.6; white-space: pre-wrap; max-height: 50vh; overflow-y: auto;"></div>
+            <div class="modal-actions" style="margin-top: 20px;">
+                <button id="btnNewsClose" class="btn-long-press"><span>長押し(3秒)で閉じる</span></button>
+            </div>
         </div>
     </div>
 
@@ -645,6 +710,98 @@
     </div>
 
 <script>
+    // ==========================================
+    // --- お知らせ取得・表示機能 (GAS連携) ---
+    // ==========================================
+    const NEWS_API_URL = "https://script.google.com/macros/s/AKfycbxT960mzFtD5QsRKSGls8etA1qCnZqkp2avpeZDyg8JAWgOhpBGSn56jgIyoG61Cc6h/exec"; 
+    
+    let newsData = [];
+
+    async function checkNews() {
+        if (!NEWS_API_URL || NEWS_API_URL.includes("ここにウェブアプリのURLを貼り付け")) return;
+        
+        try {
+            const res = await fetch(NEWS_API_URL);
+            newsData = await res.json();
+            
+            if (newsData.length === 0) return;
+            
+            // 履歴ドロワーにリストを描画
+            renderNewsHistory();
+            
+            // 最新のお知らせ（配列の1番目）を取得
+            const latestNews = newsData[0];
+            const lastSeenId = localStorage.getItem('lastSeenNewsId');
+            
+            // 最新のIDが未読ならモーダル表示
+            if (latestNews.id !== lastSeenId) {
+                document.getElementById('newsModalDate').innerText = latestNews.date;
+                document.getElementById('newsModalText').innerText = latestNews.text;
+                
+                const modal = document.getElementById('newsModal');
+                modal.style.display = 'flex';
+                setTimeout(() => modal.classList.add('show'), 10);
+                
+                // 閉じたタイミングではなく、表示したタイミングで既読フラグを立てる（安全対策）
+                localStorage.setItem('lastSeenNewsId', latestNews.id);
+            }
+        } catch (error) {
+            console.log("お知らせの取得に失敗しました");
+        }
+    }
+
+    function renderNewsHistory() {
+        const list = document.getElementById('newsHistoryList');
+        list.innerHTML = '';
+        newsData.forEach(news => {
+            const li = document.createElement('li');
+            li.className = 'article-item';
+            li.innerHTML = `
+                <div class="article-header" style="margin-bottom: 8px;">
+                    <div style="font-size:14px; font-weight:bold; color:#00acc1;">📢 お知らせ</div>
+                    <div class="article-date">${news.date}</div>
+                </div>
+                <div style="font-size: 13px; color: #333; line-height: 1.5; white-space: pre-wrap;">${news.text}</div>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    // --- 長押しで閉じるボタンの処理 ---
+    let pressTimer;
+    const btnPress = document.getElementById('btnNewsClose');
+    const modalNews = document.getElementById('newsModal');
+
+    function startPress(e) {
+        btnPress.classList.add('pressing');
+        pressTimer = setTimeout(() => {
+            closeNewsModal();
+            btnPress.classList.remove('pressing'); 
+        }, 3000); // 3000ミリ秒 = 3秒
+    }
+
+    function cancelPress() {
+        clearTimeout(pressTimer);
+        btnPress.classList.remove('pressing');
+    }
+
+    function closeNewsModal() {
+        modalNews.classList.remove('show');
+        setTimeout(() => modalNews.style.display = 'none', 300);
+    }
+
+    // スマホのタップ(touch)とPCのクリック(mouse)両対応
+    btnPress.addEventListener('mousedown', startPress);
+    btnPress.addEventListener('touchstart', startPress, {passive: true});
+    btnPress.addEventListener('mouseup', cancelPress);
+    btnPress.addEventListener('mouseleave', cancelPress);
+    btnPress.addEventListener('touchend', cancelPress);
+
+
+    // ==========================================
+    // --- 既存機能 ---
+    // ==========================================
+
     const titleInput = document.getElementById('titleInput');
     const editor = document.getElementById('editor');
     const articleList = document.getElementById('articleList');
@@ -654,6 +811,7 @@
     const drawerLeft = document.getElementById('sidebarDrawer');
     const drawerRight = document.getElementById('settingsDrawer');
     const drawerVoice = document.getElementById('voiceDrawer');
+    const drawerNews = document.getElementById('newsDrawer');
     const overlay = document.getElementById('overlay');
 
     let articles = JSON.parse(localStorage.getItem('blogStock')) || [];
@@ -671,27 +829,30 @@
 
     // --- メニュー開閉 ---
     function toggleLeftMenu() {
-        drawerRight.classList.remove('open');
-        drawerVoice.classList.remove('open');
-        drawerLeft.classList.toggle('open');
-        overlay.classList.toggle('open', drawerLeft.classList.contains('open'));
+        closeAllMenus();
+        drawerLeft.classList.add('open');
+        overlay.classList.add('open');
     }
     function toggleRightMenu() {
-        drawerLeft.classList.remove('open');
-        drawerVoice.classList.remove('open');
-        drawerRight.classList.toggle('open');
-        overlay.classList.toggle('open', drawerRight.classList.contains('open'));
+        closeAllMenus();
+        drawerRight.classList.add('open');
+        overlay.classList.add('open');
     }
     function toggleVoiceMenu() {
-        drawerLeft.classList.remove('open');
-        drawerRight.classList.remove('open');
-        drawerVoice.classList.toggle('open');
-        overlay.classList.toggle('open', drawerVoice.classList.contains('open'));
+        closeAllMenus();
+        drawerVoice.classList.add('open');
+        overlay.classList.add('open');
+    }
+    function toggleNewsDrawer() {
+        closeAllMenus();
+        drawerNews.classList.add('open');
+        overlay.classList.add('open');
     }
     function closeAllMenus() {
         drawerLeft.classList.remove('open');
         drawerRight.classList.remove('open');
         drawerVoice.classList.remove('open');
+        drawerNews.classList.remove('open');
         overlay.classList.remove('open');
     }
 
@@ -707,7 +868,7 @@
         const deltaY = e.changedTouches[0].clientY - touchStartY;
         
         const isLeftOpen = drawerLeft.classList.contains('open');
-        const isRightOpen = drawerRight.classList.contains('open') || drawerVoice.classList.contains('open');
+        const isRightOpen = drawerRight.classList.contains('open') || drawerVoice.classList.contains('open') || drawerNews.classList.contains('open');
 
         if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
             if (deltaX > 0 && !isLeftOpen && !isRightOpen) {
@@ -720,7 +881,7 @@
         }
     }, { passive: true });
 
-    // --- 既存エディタ機能 ---
+    // --- エディタ基本機能 ---
     function updateStorageMeter() {
         const usedBytes = (localStorage.getItem('blogStock') || '').length * 2; 
         const percent = Math.min((usedBytes / (5 * 1024 * 1024)) * 100, 100); 
@@ -809,14 +970,11 @@
         modal.style.display = 'flex';
         setTimeout(() => modal.classList.add('show'), 10);
     };
-
     window.closeDecoModal = function() {
         const modal = document.getElementById('decoModal');
         modal.classList.remove('show');
         setTimeout(() => modal.style.display = 'none', 300);
     };
-
-    // モーダル内の手動コピーボタン処理（AI装飾：HTML対応）
     document.getElementById('copyDecoBtn').addEventListener('click', async function() {
         const btn = this;
         try {
@@ -828,12 +986,7 @@
             ]);
             btn.innerHTML = '✔ コピー完了！';
             btn.style.backgroundColor = '#28a745';
-            
-            setTimeout(() => {
-                btn.innerHTML = '📋 コピーする';
-                btn.style.backgroundColor = '#ff4757';
-                closeDecoModal();
-            }, 1500);
+            setTimeout(() => { btn.innerHTML = '📋 コピーする'; btn.style.backgroundColor = '#ff4757'; closeDecoModal(); }, 1500);
         } catch (err) {
             try {
                 const listener = function(ev) {
@@ -841,20 +994,10 @@
                     ev.clipboardData.setData('text/plain', currentDecoPlain);
                     ev.preventDefault();
                 };
-                document.addEventListener('copy', listener);
-                document.execCommand('copy');
-                document.removeEventListener('copy', listener);
-                
-                btn.innerHTML = '✔ コピー完了！';
-                btn.style.backgroundColor = '#28a745';
-                setTimeout(() => {
-                    btn.innerHTML = '📋 コピーする';
-                    btn.style.backgroundColor = '#ff4757';
-                    closeDecoModal();
-                }, 1500);
-            } catch (e2) {
-                alert('コピーに失敗しました。');
-            }
+                document.addEventListener('copy', listener); document.execCommand('copy'); document.removeEventListener('copy', listener);
+                btn.innerHTML = '✔ コピー完了！'; btn.style.backgroundColor = '#28a745';
+                setTimeout(() => { btn.innerHTML = '📋 コピーする'; btn.style.backgroundColor = '#ff4757'; closeDecoModal(); }, 1500);
+            } catch (e2) { alert('コピーに失敗しました。'); }
         }
     });
 
@@ -885,13 +1028,11 @@
         return data.candidates[0].content.parts[0].text.trim().replace(/^```html\s*/i, '').replace(/```$/i, '');
     }
 
-    // 通常のコピー（AI通信なし）
     window.copyArticle = async function(i, btn) {
         try {
             const template = templateInput.value.trim(); 
             const bodyPlain = articles[i].text || '';
             const bodyHtml = bodyPlain.replace(/\n/g, '<br>'); 
-            
             let fHtml = '', fPlain = '';
             if(template !== ''){
                 const brs = '<br>'.repeat(10); 
@@ -899,21 +1040,17 @@
                 fHtml = brs + template.replace(/\n/g,'<br>') + brs + bodyHtml;
                 fPlain = nls + template + nls + bodyPlain;
             } else { 
-                fHtml = bodyHtml; 
-                fPlain = bodyPlain; 
+                fHtml = bodyHtml; fPlain = bodyPlain; 
             }
-            
             await navigator.clipboard.write([new ClipboardItem({ 
                 'text/html': new Blob([fHtml], {type:'text/html'}), 
                 'text/plain': new Blob([fPlain], {type:'text/plain'}) 
             })]);
-            
             const org=btn.innerHTML; btn.innerHTML='✔ 完了'; btn.style.backgroundColor='#218838';
             setTimeout(()=>{ btn.innerHTML=org; btn.style.backgroundColor=''; }, 2000);
         } catch(e) { alert('コピー失敗'); }
     };
     
-    // AI装飾コピー（ワンクッション形式）
     window.copyDecoratedArticle = async function(i, btn) {
         if(!apiKeyInput.value.trim()){ alert("右上の⚙マークからAPIキーを設定してください。"); toggleRightMenu(); return; }
         const orgText = btn.innerHTML; const orgBg = btn.style.backgroundColor;
@@ -923,17 +1060,13 @@
             const template = templateInput.value.trim();
             let fHtml = '', fPlain = '';
             if(template !== ''){
-                const brs = '<br>'.repeat(10); 
-                const nls = '\n'.repeat(10);
+                const brs = '<br>'.repeat(10); const nls = '\n'.repeat(10);
                 fHtml = brs + template.replace(/\n/g,'<br>') + brs + decoratedHtml;
                 fPlain = nls + template + nls + decoratedHtml.replace(/<[^>]*>?/gm, '');
             } else { 
-                fHtml = decoratedHtml; 
-                fPlain = decoratedHtml.replace(/<[^>]*>?/gm, ''); 
+                fHtml = decoratedHtml; fPlain = decoratedHtml.replace(/<[^>]*>?/gm, ''); 
             }
-            
             openDecoModal(fHtml, fPlain);
-            
             btn.innerHTML = '✔ 完了'; btn.style.backgroundColor = '#218838';
         } catch(err) {
             alert(err.message === "API_KEY_MISSING" ? "APIキーを設定してください。" : "AI装飾に失敗しました。\n詳細: " + err.message);
@@ -948,11 +1081,9 @@
         if(i===editingIndex) resetEditor(); else { if(i<editingIndex) editingIndex--; renderArticles(); }
     };
 
-
     // ==========================================
     // --- 女の子の声 (Q&A) 機能 ---
     // ==========================================
-    
     const allVoiceTopics = `このお店の良いところ
 このお店を選んだきっかけは？
 初めて出勤した日の大まかな流れは？
@@ -1274,7 +1405,6 @@
 
     let answeredVoiceTopics = JSON.parse(localStorage.getItem('answeredVoiceTopics')) || [];
 
-    // --- タブ切り替え処理 ---
     window.switchVoiceTab = function(tabName) {
         const unAnsList = document.getElementById('unansweredList');
         const ansList = document.getElementById('answeredList');
@@ -1282,177 +1412,107 @@
         const tabAns = document.getElementById('tabAnswered');
 
         if (tabName === 'unanswered') {
-            unAnsList.style.display = 'block';
-            ansList.style.display = 'none';
-            tabUnAns.classList.add('active');
-            tabAns.classList.remove('active');
+            unAnsList.style.display = 'block'; ansList.style.display = 'none';
+            tabUnAns.classList.add('active'); tabAns.classList.remove('active');
         } else {
-            unAnsList.style.display = 'none';
-            ansList.style.display = 'block';
-            tabUnAns.classList.remove('active');
-            tabAns.classList.add('active');
+            unAnsList.style.display = 'none'; ansList.style.display = 'block';
+            tabUnAns.classList.remove('active'); tabAns.classList.add('active');
         }
     };
 
     function renderVoiceTopics() {
         const unAnsUl = document.getElementById('unansweredList');
         const ansUl = document.getElementById('answeredList');
-        unAnsUl.innerHTML = '';
-        ansUl.innerHTML = '';
-
+        unAnsUl.innerHTML = ''; ansUl.innerHTML = '';
         allVoiceTopics.forEach((topic) => {
-            const li = document.createElement('li');
-            li.className = 'voice-item';
-            
-            li.innerHTML = `
-                <div class="voice-text">${topic}</div>
-                <button class="btn-voice" onclick="generateVoiceAnswer('${topic}', this)">🤖 回答を作成</button>
-            `;
-            
-            if (answeredVoiceTopics.includes(topic)) {
-                ansUl.appendChild(li);
-            } else {
-                unAnsUl.appendChild(li);
-            }
+            const li = document.createElement('li'); li.className = 'voice-item';
+            li.innerHTML = `<div class="voice-text">${topic}</div><button class="btn-voice" onclick="generateVoiceAnswer('${topic}', this)">🤖 回答を作成</button>`;
+            if (answeredVoiceTopics.includes(topic)) ansUl.appendChild(li);
+            else unAnsUl.appendChild(li);
         });
-        
-        // リスト再描画後も検索フィルタを適用
         filterVoiceTopics();
     }
     
-    // --- 追加：検索機能 ---
     window.filterVoiceTopics = function() {
         const query = document.getElementById('voiceSearchInput').value.toLowerCase();
-        const unAnsItems = document.getElementById('unansweredList').getElementsByTagName('li');
-        const ansItems = document.getElementById('answeredList').getElementsByTagName('li');
-
         const applyFilter = (items) => {
             for (let i = 0; i < items.length; i++) {
                 const text = items[i].querySelector('.voice-text').innerText.toLowerCase();
-                if (text.includes(query)) {
-                    items[i].style.display = 'flex';
-                } else {
-                    items[i].style.display = 'none';
-                }
+                items[i].style.display = text.includes(query) ? 'flex' : 'none';
             }
         };
-
-        applyFilter(unAnsItems);
-        applyFilter(ansItems);
+        applyFilter(document.getElementById('unansweredList').getElementsByTagName('li'));
+        applyFilter(document.getElementById('answeredList').getElementsByTagName('li'));
     };
 
     window.toggleVoiceStatus = function(topic, isAnswered) {
-        if (isAnswered) {
-            if (!answeredVoiceTopics.includes(topic)) answeredVoiceTopics.push(topic);
-        }
+        if (isAnswered && !answeredVoiceTopics.includes(topic)) answeredVoiceTopics.push(topic);
         localStorage.setItem('answeredVoiceTopics', JSON.stringify(answeredVoiceTopics));
         renderVoiceTopics();
     };
 
-    // --- 女の子の声用モーダル操作 ---
     window.openResultModal = function(text, topic) {
         document.getElementById('resultTextarea').value = text;
         currentTopicForCopy = topic;
         const modal = document.getElementById('resultModal');
-        modal.style.display = 'flex';
-        setTimeout(() => modal.classList.add('show'), 10);
+        modal.style.display = 'flex'; setTimeout(() => modal.classList.add('show'), 10);
     };
 
     window.closeResultModal = function() {
         const modal = document.getElementById('resultModal');
-        modal.classList.remove('show');
-        setTimeout(() => modal.style.display = 'none', 300);
+        modal.classList.remove('show'); setTimeout(() => modal.style.display = 'none', 300);
     };
 
-    // モーダル内の手動コピーボタン処理（女の子の声）
     document.getElementById('copyResultBtn').addEventListener('click', async function() {
         const text = document.getElementById('resultTextarea').value;
         const btn = this;
         try {
             await navigator.clipboard.writeText(text);
-            btn.innerHTML = '✔ コピー完了！';
-            btn.style.backgroundColor = '#28a745';
-            
+            btn.innerHTML = '✔ コピー完了！'; btn.style.backgroundColor = '#28a745';
             toggleVoiceStatus(currentTopicForCopy, true);
-            
-            setTimeout(() => {
-                btn.innerHTML = '📋 コピーする';
-                btn.style.backgroundColor = '#ff4757';
-                closeResultModal();
-            }, 1500);
+            setTimeout(() => { btn.innerHTML = '📋 コピーする'; btn.style.backgroundColor = '#ff4757'; closeResultModal(); }, 1500);
         } catch (err) {
             try {
-                const textArea = document.getElementById('resultTextarea');
-                textArea.select();
-                document.execCommand('copy');
-                
-                btn.innerHTML = '✔ コピー完了！';
-                btn.style.backgroundColor = '#28a745';
+                const textArea = document.getElementById('resultTextarea'); textArea.select(); document.execCommand('copy');
+                btn.innerHTML = '✔ コピー完了！'; btn.style.backgroundColor = '#28a745';
                 toggleVoiceStatus(currentTopicForCopy, true);
-                
-                setTimeout(() => {
-                    btn.innerHTML = '📋 コピーする';
-                    btn.style.backgroundColor = '#ff4757';
-                    closeResultModal();
-                }, 1500);
-            } catch (e) {
-                alert('コピーに失敗しました。');
-            }
+                setTimeout(() => { btn.innerHTML = '📋 コピーする'; btn.style.backgroundColor = '#ff4757'; closeResultModal(); }, 1500);
+            } catch (e) { alert('コピーに失敗しました。'); }
         }
     });
 
     window.generateVoiceAnswer = async function(topic, btnElement) {
         const apiKey = apiKeyInput.value.trim();
-        if (!apiKey) {
-            alert("右上の⚙マークからGemini APIキーを設定してください。");
-            toggleRightMenu();
-            return;
-        }
-
-        const orgText = btnElement.innerHTML;
-        btnElement.innerHTML = '⏳ 生成中...';
-        btnElement.disabled = true;
-
+        if (!apiKey) { alert("右上の⚙マークからGemini APIキーを設定してください。"); toggleRightMenu(); return; }
+        const orgText = btnElement.innerHTML; btnElement.innerHTML = '⏳ 生成中...'; btnElement.disabled = true;
         try {
             const systemPrompt = `あなたは水商売・コンセプトカフェで働く、経験豊富で頼りになる先輩キャストです。
 以下の「女の子の声」というブログのQ&Aコーナーのお題に対して、未経験の女の子やこれからキャストになろうと悩んでいる読者に向けて、真摯で丁寧なアドバイスを記述してください。
 過度に軽いトーンや過剰な絵文字は控え、誠実さ、安心感、そして働くことへの前向きな姿勢が伝わる落ち着いた文章にしてください。
-
 【厳守事項】
 ・回答の文字数は必ず「50文字以上、200文字以内」に収めてください。
 ・50文字未満は絶対に出力しないでください。最低条件です。
 ・短すぎず、長すぎない、適切なボリュームを意識してください。`;
-
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
-
             const response = await fetch(url, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
+                method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     systemInstruction: { parts: [{ text: systemPrompt }] },
                     contents: [{ parts: [{ text: `お題：${topic}\nこのお題に対する回答のみを出力してください。` }] }],
                     generationConfig: { temperature: 0.8 }
                 })
             });
-
             const data = await response.json();
             if (data.error) throw new Error(data.error.message);
-
-            const resultText = data.candidates[0].content.parts[0].text.trim();
-            
-            openResultModal(resultText, topic);
-            
-        } catch (err) {
-            alert("回答の生成に失敗しました。\n詳細: " + err.message);
-        } finally {
-            btnElement.innerHTML = orgText;
-            btnElement.disabled = false;
-        }
+            openResultModal(data.candidates[0].content.parts[0].text.trim(), topic);
+        } catch (err) { alert("回答の生成に失敗しました。\n詳細: " + err.message);
+        } finally { btnElement.innerHTML = orgText; btnElement.disabled = false; }
     };
 
     window.addEventListener('DOMContentLoaded', () => {
         resetEditor();
         renderVoiceTopics(); 
+        checkNews(); 
     });
 </script>
 
